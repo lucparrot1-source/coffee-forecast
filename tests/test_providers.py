@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from coffee_forecast.data.providers import PriceProvider, YahooProvider, _COLUMNS
+from coffee_forecast.data.providers import _COLUMNS, PriceProvider, YahooProvider
 
 
 def _make_multi_index_df(ticker: str) -> pd.DataFrame:

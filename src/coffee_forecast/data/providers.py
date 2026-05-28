@@ -15,7 +15,8 @@ _COLUMNS = ["date", "symbol", "open", "high", "low", "close", "volume", "adj_clo
 class PriceProvider(ABC):
     @abstractmethod
     def fetch(self, symbols: list[str], start: date, end: date) -> pd.DataFrame:
-        """Return DataFrame with columns: date, symbol, open, high, low, close, volume, adj_close."""
+        """Return DataFrame with columns:
+        date, symbol, open, high, low, close, volume, adj_close."""
 
 
 class YahooProvider(PriceProvider):
