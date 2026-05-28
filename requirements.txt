@@ -1,0 +1,11 @@
+# Runtime dependencies — update with exact versions after: pip install -r requirements.txt && pip freeze > requirements.txt
+yfinance==0.2.52
+pandas==2.2.3
+numpy==1.26.4
+requests==2.32.3
+tenacity==9.1.2
+statsmodels==0.14.4
+scipy==1.13.1
+streamlit==1.45.1
+plotly==5.24.1
+python-dotenv==1.0.1
