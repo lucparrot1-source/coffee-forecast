@@ -20,7 +20,7 @@ env/
 !.env.example
 
 # Data (SQLite database — tracked separately if needed)
-data/
+/data/
 
 # Jupyter
 .ipynb_checkpoints/

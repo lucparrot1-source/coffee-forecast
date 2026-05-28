@@ -9,10 +9,7 @@ from coffee_forecast.db.migrations import ensure_schema
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
     monkeypatch.setenv("COFFEE_DB_PATH", str(tmp_path / "test.db"))
-    import importlib
-    import coffee_forecast.db as db_module
-    importlib.reload(db_module)
-    c = db_module.get_connection()
+    c = get_connection()
     ensure_schema(c)
     yield c
     c.close()
@@ -25,7 +22,14 @@ def test_all_tables_created(conn):
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    expected = {"prices", "prices_monthly", "model_runs", "forecasts", "backtest_results", "accuracy_log"}
+    expected = {
+        "prices",
+        "prices_monthly",
+        "model_runs",
+        "forecasts",
+        "backtest_results",
+        "accuracy_log",
+    }
     assert expected.issubset(tables)
 
 
