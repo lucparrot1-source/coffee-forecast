@@ -8,7 +8,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 from coffee_forecast.alerts import send_pipeline_alert
-from coffee_forecast.data.providers import PriceProvider, TICKERS, YahooProvider
+from coffee_forecast.data.providers import TICKERS, PriceProvider, YahooProvider
 from coffee_forecast.db import get_connection
 from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.logging_config import configure_logging
@@ -38,7 +38,7 @@ def ingest(
 
     for sym in _tickers:
         latest = _latest_date(conn, sym)
-        if start_override:
+        if start_override is not None:
             fetch_start = start_override
         elif latest:
             fetch_start = latest + timedelta(days=1)

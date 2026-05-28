@@ -1,5 +1,4 @@
-import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -56,7 +55,8 @@ def test_ingest_inserts_rows(conn):
 
 def test_ingest_no_duplicates(conn):
     conn.execute(
-        "INSERT INTO prices (date, symbol, close, adj_close) VALUES ('2020-01-02', 'KC=F', 100.0, 100.0)"
+        "INSERT INTO prices (date, symbol, close, adj_close)"
+        " VALUES ('2020-01-02', 'KC=F', 100.0, 100.0)"
     )
     conn.commit()
     provider = MagicMock()
