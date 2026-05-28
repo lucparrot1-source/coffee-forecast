@@ -39,7 +39,8 @@ def resample(conn: sqlite3.Connection, as_of: date | None = None) -> None:
 
     records = monthly[["date", "symbol", "adj_close"]].values.tolist()
     conn.executemany(
-        "INSERT OR REPLACE INTO prices_monthly (date, symbol, adj_close) VALUES (?, ?, ?)",
+        "INSERT INTO prices_monthly (date, symbol, adj_close) VALUES (?, ?, ?)"
+        " ON CONFLICT(date, symbol) DO UPDATE SET adj_close = excluded.adj_close",
         records,
     )
     conn.commit()
