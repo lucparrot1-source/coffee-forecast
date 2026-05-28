@@ -42,6 +42,9 @@ _quarto/
 # pytest
 .pytest_cache/
 
+# Git worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
