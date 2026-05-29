@@ -31,7 +31,7 @@ def fit_ar1(s: pd.Series) -> tuple[float, float]:
     X = np.column_stack([np.ones_like(x), x])
     coefs, *_ = np.linalg.lstsq(X, y, rcond=None)
     rho = float(coefs[1])
-    if 0.0 < abs(rho) < 0.99999:
+    if 0.0 < abs(rho) < 1.0:
         half_life = -np.log(2) / np.log(abs(rho))
     else:
         half_life = float("nan")
