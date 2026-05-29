@@ -19,3 +19,20 @@ log = logging.getLogger(__name__)
 def compute_spread(wide: pd.DataFrame) -> pd.Series:
     """Return log(KC=F) - log(RM=F) as a monthly Series."""
     return np.log(wide["KC=F"]) - np.log(wide["RM=F"])
+
+
+def fit_ar1(s: pd.Series) -> tuple[float, float]:
+    """OLS AR(1) fit on spread series s. Returns (rho, half_life_months).
+
+    half_life is nan when |rho| == 0 or |rho| >= 1 (non-stationary / explosive).
+    """
+    y = s.values[1:]
+    x = s.values[:-1]
+    X = np.column_stack([np.ones_like(x), x])
+    coefs, *_ = np.linalg.lstsq(X, y, rcond=None)
+    rho = float(coefs[1])
+    if 0.0 < abs(rho) < 0.99999:
+        half_life = -np.log(2) / np.log(abs(rho))
+    else:
+        half_life = float("nan")
+    return rho, half_life
