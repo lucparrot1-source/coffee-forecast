@@ -77,7 +77,17 @@ CREATE TABLE IF NOT EXISTS accuracy_log (
     coverage_80 INTEGER  -- 1 if actual falls within [p10, p90], else 0
 );
 
+CREATE TABLE IF NOT EXISTS spread_signals (
+    id         INTEGER PRIMARY KEY,
+    date       TEXT    NOT NULL UNIQUE,  -- YYYY-MM-01
+    spread     REAL,                     -- log(KC=F) - log(RM=F)
+    z_score    REAL,                     -- expanding z-score
+    signal     INTEGER,                  -- +1, -1, or 0
+    half_life  REAL                      -- months, AR(1) expanding estimate
+);
+
 CREATE INDEX IF NOT EXISTS idx_prices_date_symbol       ON prices (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_monthly_date      ON prices_monthly (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_forecasts_target         ON forecasts (target_date, symbol);
 CREATE INDEX IF NOT EXISTS idx_backtest_target          ON backtest_results (target_date, symbol);
+CREATE INDEX IF NOT EXISTS idx_spread_signals_date      ON spread_signals (date);
