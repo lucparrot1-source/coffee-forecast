@@ -19,7 +19,9 @@ def resample(conn: sqlite3.Connection, as_of: date | None = None) -> None:
     cutoff = (as_of or date.today()).replace(day=1).isoformat()[:7]  # 'YYYY-MM'
 
     rows = conn.execute(
-        "SELECT date, symbol, adj_close FROM prices WHERE adj_close IS NOT NULL"
+        "SELECT date, symbol, adj_close FROM prices"
+        " WHERE adj_close IS NOT NULL AND strftime('%Y-%m', date) < ?",
+        (cutoff,),
     ).fetchall()
 
     if not rows:
@@ -28,7 +30,6 @@ def resample(conn: sqlite3.Connection, as_of: date | None = None) -> None:
 
     df = pd.DataFrame(rows, columns=["date", "symbol", "adj_close"])
     df["year_month"] = df["date"].str[:7]
-    df = df[df["year_month"] < cutoff]
 
     if df.empty:
         log.info("No complete months to resample")

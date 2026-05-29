@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS prices_monthly (
     id          INTEGER PRIMARY KEY,
     date        TEXT    NOT NULL,  -- YYYY-MM-01 (month-start convention)
     symbol      TEXT    NOT NULL,
-    close       REAL,
     adj_close   REAL,
     UNIQUE (date, symbol)
 );

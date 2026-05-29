@@ -21,8 +21,9 @@ The user (Luc) is non-technical. Explain key concepts and decisions in plain Eng
 | Hosting | Local dev + GitHub Actions for monthly live runs |
 | Output | Streamlit dashboard (Streamlit Cloud) + auto-generated monthly PDF (Quarto) |
 | Language stack | Python primary; R subprocess for GAMLSS only |
-| Data source | Yahoo Finance (`KC=F`, `RM=F`, `BRL=X`, `VND=X`, `DXY`) for v1, behind a swappable `PriceProvider` interface |
-| FX in model | Include BRL, VND, DXY as exogenous drivers from v1 |
+| Data source | **FRED** (no key needed) for coffee prices: `PCOFFOTMUSDM` (Arabica), `PCOFFROBUSDM` (Robusta), `DTWEXBGS` (DXY broad index). **Alpha Vantage** (free key, `ALPHA_VANTAGE_API_KEY`) for FX monthly: BRL=X, VND=X, IDR=X via `FX_MONTHLY` endpoint. Provider routed via `CompositeProvider` / `make_default_provider()`. |
+| FX in model | BRL, VND, IDR, DXY as **exogenous drivers** in VECM (not endogenous — Johansen found r=0 in 4-variable system) |
+| TICKERS | `["KC=F", "RM=F", "BRL=X", "VND=X", "IDR=X", "DX-Y.NYB"]` — all stored in `prices` table |
 | Combiner | Sequential — VECM produces point forecast, GAMLSS models distribution around it |
 | GAMLSS family | BCT (Box-Cox-t) — fat tails + skew |
 | Spread signal | OU / AR(1) on log(Arabica) − log(Robusta), entry threshold \|z\| > 2 |
@@ -34,7 +35,7 @@ The user (Luc) is non-technical. Explain key concepts and decisions in plain Eng
 
 ## Architecture (one-paragraph summary)
 
-A Python data layer ingests Yahoo prices into SQLite behind a provider-agnostic interface. A VECM (statsmodels) fits cointegration between Arabica, Robusta and FX, producing point forecasts at 1/2/3-month horizons. A separate R subprocess fits a GAMLSS BCT distribution to the VECM forecast residuals conditional on regime indicators, giving full predictive distributions. A standalone spread model on log(Arabica/Robusta) provides a mean-reversion signal. A walk-forward backtest engine writes results to SQLite. Streamlit visualises everything; Quarto renders a monthly PDF. GitHub Actions runs the full pipeline on the 1st of each month and emails on failure.
+A Python data layer ingests prices into SQLite behind a `PriceProvider` interface. `CompositeProvider` routes coffee + DXY symbols to `FREDProvider` and FX (BRL, VND, IDR) symbols to `AlphaVantageProvider`. A VECM (statsmodels) fits cointegration between Arabica and Robusta with BRL, VND, IDR, and DXY as exogenous drivers, producing point forecasts at 1/2/3-month horizons. A separate R subprocess fits a GAMLSS BCT distribution to the VECM forecast residuals conditional on regime indicators, giving full predictive distributions. A standalone spread model on log(Arabica/Robusta) provides a mean-reversion signal. A walk-forward backtest engine writes results to SQLite. Streamlit visualises everything; Quarto renders a monthly PDF. GitHub Actions runs the full pipeline on the 1st of each month and emails on failure.
 
 See the full plan in conversation history of the initial planning session, or rebuild it from the locked-in decisions above.
 
@@ -52,7 +53,7 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] Resend alert wrapper for pipeline scripts
   - [x] SQLite schema + migrations (`prices`, `prices_monthly`, `model_runs`, `forecasts`, `backtest_results`, `accuracy_log`)
   - [x] Repo README placeholder
-  - Note: `fx` merged into `prices` table — all Yahoo tickers (BRL=X, VND=X, DXY) stored there uniformly
+  - Note: `fx` merged into `prices` table — all Yahoo tickers (BRL=X, VND=X, DX-Y.NYB) stored there uniformly
 - [x] **Step 2 — Data layer**
   - [x] `PriceProvider` ABC (`src/coffee_forecast/data/providers.py`)
   - [x] `YahooProvider` implementation (tenacity retry on `_download`; flat-to-MultiIndex normalisation for single-ticker yfinance quirk)
@@ -61,7 +62,17 @@ See the full plan in conversation history of the initial planning session, or re
   - Note: Monthly metric is **mean of daily adj_close** (chosen over last-close for noise smoothing). Historical start date: 2000-01-01.
   - Note: `db/__init__.py` patched to lazy-evaluate `COFFEE_DB_PATH` so `monkeypatch.setenv` works in tests.
   - Note: `data/` in `.gitignore` changed to `/data/` to avoid blocking the `src/coffee_forecast/data/` package.
-- [ ] **Step 3 — Exploratory analysis notebook** (stationarity, cointegration, ACF/PACF, regimes)
+  - ⚠️ `pip freeze` not yet run — transitive deps not fully pinned. Do this before Step 3 model work.
+- [x] **Step 3 — Exploratory analysis notebook** (`notebooks/01_eda.ipynb`)
+  - [x] Price series plots (raw, log, log returns) — data from FRED, 243 monthly obs 2006–2026
+  - [x] Stationarity: all 4 series confirmed I(1) ✅
+  - [x] Johansen cointegration on 4 series: r=0 (no cointegrating vectors) ⚠️
+  - [x] Engle-Granger Arabica–Robusta pairwise: p=0.009, cointegrated ✅
+  - [x] ACF/PACF on differenced log prices for KC=F and RM=F
+  - [x] Regime detection: rolling-vol gives balanced 76/79/76 Low/Med/High split ✅; HMM degenerated (240/2 split) — use rolling-vol for GAMLSS
+  - **Key decision for Step 5:** model as 2-variable VECM [KC=F, RM=F] with BRL and DXY as exogenous inputs, not a 4-variable VECM (Johansen finds no cointegration in the 4-variable system)
+  - Note: new deps — `matplotlib==3.10.9`, `hmmlearn==0.3.3`, `jupyterlab==4.5.7`, `pandas-datareader==0.10.0` (yfinance and nasdaq-data-link removed)
+  - Note: notebook TICKERS currently `["KC=F", "RM=F", "BRL=X", "DX-Y.NYB"]`; add VND=X and IDR=X once Alpha Vantage key is set and data ingested
 - [ ] **Step 4 — Spread model** (Arabica–Robusta cointegration, OU fit, z-score, signal)
 - [ ] **Step 5 — VECM model** (lag/rank selection, point forecasts, tests)
 - [ ] **Step 6 — R/GAMLSS subprocess bridge** (BCT fit on VECM residuals)

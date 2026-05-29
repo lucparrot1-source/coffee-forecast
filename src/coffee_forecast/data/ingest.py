@@ -8,7 +8,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 from coffee_forecast.alerts import send_pipeline_alert
-from coffee_forecast.data.providers import TICKERS, PriceProvider, YahooProvider
+from coffee_forecast.data.providers import TICKERS, PriceProvider, make_default_provider
 from coffee_forecast.db import get_connection
 from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.logging_config import configure_logging
@@ -33,31 +33,36 @@ def ingest(
     provider: PriceProvider | None = None,
 ) -> None:
     _tickers = tickers if tickers is not None else TICKERS
-    _provider: PriceProvider = provider if provider is not None else YahooProvider()
+    _provider: PriceProvider = provider if provider is not None else make_default_provider()
     today = date.today()
 
-    for sym in _tickers:
-        latest = _latest_date(conn, sym)
-        if start_override is not None:
-            fetch_start = start_override
-        elif latest:
-            fetch_start = latest + timedelta(days=1)
-        else:
+    # Use the earliest needed start date across all tickers so we hit Yahoo once.
+    if start_override is not None:
+        fetch_start = start_override
+    else:
+        dates = [_latest_date(conn, sym) for sym in _tickers]
+        if all(d is None for d in dates):
             fetch_start = DEFAULT_START
+        else:
+            # Earliest outstanding date — catches any ticker that lags behind.
+            fetch_start = min(
+                (d + timedelta(days=1) if d else DEFAULT_START) for d in dates
+            )
 
-        if fetch_start > today:
-            log.info("%s: already up to date", sym)
-            continue
+    if fetch_start > today:
+        log.info("All tickers already up to date")
+        return
 
-        log.info("%s: fetching %s → %s", sym, fetch_start, today)
-        df = _provider.fetch([sym], fetch_start, today)
+    log.info("Fetching %s tickers %s → %s (single request)", len(_tickers), fetch_start, today)
+    df = _provider.fetch(_tickers, fetch_start, today)
 
-        if df.empty:
-            log.info("%s: no data returned", sym)
-            continue
+    if df.empty:
+        log.info("No data returned")
+        return
 
+    for sym, sym_df in df.groupby("symbol"):
         records = (
-            df.astype(object).where(pd.notna(df), other=None)[_COLS].values.tolist()
+            sym_df.astype(object).where(pd.notna(sym_df), other=None)[_COLS].values.tolist()
         )
         before = conn.total_changes
         conn.executemany(
