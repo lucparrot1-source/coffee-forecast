@@ -14,3 +14,8 @@ from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
+
+
+def compute_spread(wide: pd.DataFrame) -> pd.Series:
+    """Return log(KC=F) - log(RM=F) as a monthly Series."""
+    return np.log(wide["KC=F"]) - np.log(wide["RM=F"])
