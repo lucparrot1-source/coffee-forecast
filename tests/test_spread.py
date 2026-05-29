@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
-
 
 from coffee_forecast.models.spread import compute_spread, fit_ar1
 
