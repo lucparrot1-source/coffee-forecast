@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from coffee_forecast.models.spread import compute_spread, compute_zscore, fit_ar1
+from coffee_forecast.models.spread import compute_spread, compute_zscore, fit_ar1, generate_signal
 
 
 def _wide(kc: list[float], rm: list[float]) -> pd.DataFrame:
@@ -70,3 +70,38 @@ def test_zscore_index_preserved():
     s = pd.Series([10.0, 20.0, 15.0], index=pd.date_range("2020-01", periods=3, freq="MS"))
     z = compute_zscore(s)
     assert list(z.index) == list(s.index)
+
+
+def test_signal_entry_and_exit():
+    # Entry long, hold, exit, entry short, hold, exit
+    z = pd.Series([-3.0, -3.0, 0.3, 0.3, 3.0, 3.0, 0.3])
+    sig = generate_signal(z)
+    assert list(sig) == [1, 1, 0, 0, -1, -1, 0]
+
+
+def test_signal_hold_in_dead_zone():
+    # z in (0.5, 2.0) → hold previous signal
+    z = pd.Series([3.0, 1.5, 1.5, 0.3])
+    sig = generate_signal(z)
+    assert sig.iloc[0] == -1   # entry short
+    assert sig.iloc[1] == -1   # hold (1.5 is in (0.5, 2.0))
+    assert sig.iloc[2] == -1   # hold
+    assert sig.iloc[3] == 0    # exit
+
+
+def test_signal_starts_flat():
+    # No extreme z yet → stay flat
+    z = pd.Series([1.0, 1.0, 1.0])
+    sig = generate_signal(z)
+    assert list(sig) == [0, 0, 0]
+
+
+def test_signal_nan_preserves_state():
+    # NaN at start doesn't trigger entry; position should stay 0
+    z = pd.Series([float("nan"), float("nan"), 3.0, float("nan"), 0.3])
+    sig = generate_signal(z)
+    assert sig.iloc[0] == 0    # NaN → flat
+    assert sig.iloc[1] == 0    # NaN → still flat
+    assert sig.iloc[2] == -1   # entry short
+    assert sig.iloc[3] == -1   # NaN → hold
+    assert sig.iloc[4] == 0    # exit
