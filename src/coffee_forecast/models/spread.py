@@ -21,6 +21,15 @@ def compute_spread(wide: pd.DataFrame) -> pd.Series:
     return np.log(wide["KC=F"]) - np.log(wide["RM=F"])
 
 
+def compute_zscore(s: pd.Series) -> pd.Series:
+    """Expanding z-score: (s - expanding_mean) / expanding_std.
+
+    Index 0 is NaN (need >= 2 points for std).
+    """
+    exp = s.expanding(min_periods=2)
+    return (s - exp.mean()) / exp.std()
+
+
 def fit_ar1(s: pd.Series) -> tuple[float, float]:
     """OLS AR(1) fit on spread series s. Returns (rho, half_life_months).
 

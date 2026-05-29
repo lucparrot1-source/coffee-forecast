@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from coffee_forecast.models.spread import compute_spread, fit_ar1
+from coffee_forecast.models.spread import compute_spread, compute_zscore, fit_ar1
 
 
 def _wide(kc: list[float], rm: list[float]) -> pd.DataFrame:
@@ -52,3 +52,21 @@ def test_fit_ar1_non_stationary_returns_nan_halflife():
     s = pd.Series(np.array([1.05**i for i in range(50)]))
     _, hl = fit_ar1(s)
     assert np.isnan(hl)
+
+
+def test_zscore_first_value_is_nan():
+    s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    z = compute_zscore(s)
+    assert np.isnan(z.iloc[0])
+
+
+def test_zscore_finite_from_index_1():
+    s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    z = compute_zscore(s)
+    assert z.iloc[1:].notna().all()
+
+
+def test_zscore_index_preserved():
+    s = pd.Series([10.0, 20.0, 15.0], index=pd.date_range("2020-01", periods=3, freq="MS"))
+    z = compute_zscore(s)
+    assert list(z.index) == list(s.index)
