@@ -53,16 +53,17 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] Resend alert wrapper for pipeline scripts
   - [x] SQLite schema + migrations (`prices`, `prices_monthly`, `model_runs`, `forecasts`, `backtest_results`, `accuracy_log`)
   - [x] Repo README placeholder
-  - Note: `fx` merged into `prices` table — all Yahoo tickers (BRL=X, VND=X, DX-Y.NYB) stored there uniformly
+  - Note: `fx` merged into `prices` table — all symbols (BRL=X, VND=X, IDR=X, DX-Y.NYB) stored uniformly in `prices`
 - [x] **Step 2 — Data layer**
   - [x] `PriceProvider` ABC (`src/coffee_forecast/data/providers.py`)
-  - [x] `YahooProvider` implementation (tenacity retry on `_download`; flat-to-MultiIndex normalisation for single-ticker yfinance quirk)
-  - [x] Ingestion CLI (`python -m coffee_forecast.data.ingest [--start YYYY-MM-DD] [--db PATH]`) — incremental, `INSERT OR IGNORE`
+  - [x] `FREDProvider` (coffee prices + DXY), `AlphaVantageProvider` (BRL/VND/IDR FX), `CompositeProvider` routing, `make_default_provider()` factory
+  - [x] Ingestion CLI (`python -m coffee_forecast.data.ingest [--start YYYY-MM-DD] [--db PATH]`) — single bulk fetch, `INSERT OR IGNORE`
   - [x] Month-end resampling job (`python -m coffee_forecast.data.resample [--db PATH]`) — mean `adj_close` per month, excludes current month
+  - [x] `load_dotenv()` added to `configure_logging()` so `.env` is loaded by all pipeline scripts
   - Note: Monthly metric is **mean of daily adj_close** (chosen over last-close for noise smoothing). Historical start date: 2000-01-01.
   - Note: `db/__init__.py` patched to lazy-evaluate `COFFEE_DB_PATH` so `monkeypatch.setenv` works in tests.
   - Note: `data/` in `.gitignore` changed to `/data/` to avoid blocking the `src/coffee_forecast/data/` package.
-  - ⚠️ `pip freeze` not yet run — transitive deps not fully pinned. Do this before Step 3 model work.
+  - Note: DB currently holds KC=F/RM=F ~315 months (FRED), DX-Y.NYB ~244 months (FRED), BRL=X ~316 months, VND=X/IDR=X ~137 months (Alpha Vantage)
 - [x] **Step 3 — Exploratory analysis notebook** (`notebooks/01_eda.ipynb`)
   - [x] Price series plots (raw, log, log returns) — data from FRED, 243 monthly obs 2006–2026
   - [x] Stationarity: all 4 series confirmed I(1) ✅
@@ -70,9 +71,9 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] Engle-Granger Arabica–Robusta pairwise: p=0.009, cointegrated ✅
   - [x] ACF/PACF on differenced log prices for KC=F and RM=F
   - [x] Regime detection: rolling-vol gives balanced 76/79/76 Low/Med/High split ✅; HMM degenerated (240/2 split) — use rolling-vol for GAMLSS
-  - **Key decision for Step 5:** model as 2-variable VECM [KC=F, RM=F] with BRL and DXY as exogenous inputs, not a 4-variable VECM (Johansen finds no cointegration in the 4-variable system)
+  - **Key decision for Step 5:** model as 2-variable VECM [KC=F, RM=F] with BRL, VND, IDR, DXY as exogenous inputs — Johansen finds no cointegration in the 4-variable system, so FX stays exogenous
   - Note: new deps — `matplotlib==3.10.9`, `hmmlearn==0.3.3`, `jupyterlab==4.5.7`, `pandas-datareader==0.10.0` (yfinance and nasdaq-data-link removed)
-  - Note: notebook TICKERS currently `["KC=F", "RM=F", "BRL=X", "DX-Y.NYB"]`; add VND=X and IDR=X once Alpha Vantage key is set and data ingested
+  - Note: notebook TICKERS use `["KC=F", "RM=F", "BRL=X", "DX-Y.NYB"]`; VND=X and IDR=X data now in DB — can be added to notebook in a future pass
 - [ ] **Step 4 — Spread model** (Arabica–Robusta cointegration, OU fit, z-score, signal)
 - [ ] **Step 5 — VECM model** (lag/rank selection, point forecasts, tests)
 - [ ] **Step 6 — R/GAMLSS subprocess bridge** (BCT fit on VECM residuals)
