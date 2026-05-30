@@ -80,7 +80,14 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] `main()` + `__main__` guard with Resend alert wrapper
   - [x] 20 unit + integration tests; smoke test confirmed 315 rows on live DB
   - Note: entry `|z| > 2.0`, exit `|z| < 0.5`, expanding-window z-score
-- [ ] **Step 5 — VECM model** (lag/rank selection, point forecasts, tests)
+- [x] **Step 5 — VECM model** (lag/rank selection, point forecasts, tests)
+  - [x] 2-variable VECM [KC=F, RM=F] with 4 exogenous inputs (BRL=X, VND=X, IDR=X, DX-Y.NYB)
+  - [x] Cointegration rank hardcoded to 1 (EDA confirmed), automatic AIC lag selection up to 12 lags
+  - [x] Naïve exogenous forecast: Δexog = 0 (hold FX flat); refined forecast available via fallback to random walk
+  - [x] `compute_vecm_forecast`, `run_vecm_model` — reads `prices_monthly`, upserts into `vecm_residuals` table (point forecast + residual)
+  - [x] `main()` + `__main__` guard with Resend alert wrapper
+  - [x] 47 unit + integration tests; full pipeline smoke test passed
+  - Note: 2-variable VECM [KC=F, RM=F] with 4 exog (BRL=X, VND=X, IDR=X, DX-Y.NYB), coint_rank=1 hardcoded (EDA confirmed), AIC lag selection up to 12, naïve Δexog=0 forecast assumption, residuals stored in `vecm_residuals` table for GAMLSS (Step 6)
 - [ ] **Step 6 — R/GAMLSS subprocess bridge** (BCT fit on VECM residuals)
 - [ ] **Step 7 — Hybrid combiner** (sequential mean + distribution)
 - [ ] **Step 8 — Backtest engine** (walk-forward expanding window, metrics, benchmarks)
