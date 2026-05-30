@@ -11,6 +11,9 @@ from coffee_forecast.models.vecm import (
     generate_forecasts,
     load_aligned_data,
     select_lag_order,
+    write_forecasts,
+    write_residuals,
+    write_run,
 )
 
 
@@ -136,3 +139,49 @@ def test_generate_forecasts_back_transform() -> None:
     df = generate_forecasts(result, endog.columns.tolist(), exog.shape[1])
     for _, row in df.iterrows():
         assert abs(np.exp(row["log_forecast"]) - row["point_forecast"]) < 1e-10
+
+
+def test_write_run_inserts_model_run(mem_conn: sqlite3.Connection) -> None:
+    params = {
+        "lag_order": 2, "coint_rank": 1, "exog_symbols": [],
+        "train_start": "2014-01-01", "train_end": "2024-01-01", "n_obs": 100,
+    }
+    run_id = write_run(mem_conn, params, {"log_likelihood": 300.0})
+    row = mem_conn.execute(
+        "SELECT model_type, status FROM model_runs WHERE id=?", (run_id,)
+    ).fetchone()
+    assert row == ("vecm", "success")
+
+
+def test_write_forecasts_inserts_six_rows(mem_conn: sqlite3.Connection) -> None:
+    params = {
+        "lag_order": 2, "coint_rank": 1, "exog_symbols": [],
+        "train_start": "2014-01-01", "train_end": "2024-01-01", "n_obs": 100,
+    }
+    run_id = write_run(mem_conn, params, {})
+    forecasts_df = pd.DataFrame([
+        {"horizon": h, "symbol": sym, "log_forecast": 5.0, "point_forecast": np.exp(5.0)}
+        for h in [1, 2, 3] for sym in ["KC=F", "RM=F"]
+    ])
+    write_forecasts(mem_conn, run_id, forecasts_df, "2024-01-01")
+    count = mem_conn.execute(
+        "SELECT COUNT(*) FROM forecasts WHERE run_id=?", (run_id,)
+    ).fetchone()[0]
+    assert count == 6
+
+
+def test_write_residuals_inserts_rows(mem_conn: sqlite3.Connection) -> None:
+    params = {
+        "lag_order": 1, "coint_rank": 1, "exog_symbols": [],
+        "train_start": "2014-01-01", "train_end": "2024-01-01", "n_obs": 10,
+    }
+    run_id = write_run(mem_conn, params, {})
+    residuals_df = pd.DataFrame([
+        {"date": "2014-02-01", "symbol": "KC=F", "residual": 0.01},
+        {"date": "2014-02-01", "symbol": "RM=F", "residual": -0.02},
+    ])
+    write_residuals(mem_conn, run_id, residuals_df)
+    count = mem_conn.execute(
+        "SELECT COUNT(*) FROM vecm_residuals WHERE run_id=?", (run_id,)
+    ).fetchone()[0]
+    assert count == 2

@@ -1,10 +1,10 @@
 import argparse  # noqa: F401
-import json  # noqa: F401
+import json
 import logging
 import os  # noqa: F401
 import sqlite3
 import traceback  # noqa: F401
-from datetime import datetime, timezone  # noqa: F401
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -113,3 +113,62 @@ def generate_forecasts(
                 "point_forecast": float(np.exp(log_fc)),
             })
     return pd.DataFrame(rows)
+
+
+def write_run(
+    conn: sqlite3.Connection, params: dict[str, object], metrics: dict[str, object]
+) -> int:
+    """Insert a model run record and return its id."""
+    cur = conn.execute(
+        "INSERT INTO model_runs"
+        " (run_at, model_type, train_start, train_end, params, metrics, status)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            datetime.now(UTC).isoformat(),
+            "vecm",
+            params["train_start"],
+            params["train_end"],
+            json.dumps(params),
+            json.dumps(metrics),
+            "success",
+        ),
+    )
+    conn.commit()
+    assert cur.lastrowid is not None
+    return int(cur.lastrowid)
+
+
+def write_forecasts(
+    conn: sqlite3.Connection, run_id: int, forecasts_df: pd.DataFrame, forecast_date: str
+) -> None:
+    """Insert forecast rows, computing target_date from forecast_date + horizon."""
+    records = []
+    for _, row in forecasts_df.iterrows():
+        h = int(row["horizon"])
+        target_date = (
+            pd.Timestamp(forecast_date) + pd.DateOffset(months=h)
+        ).strftime("%Y-%m-%d")
+        records.append(
+            (run_id, forecast_date, target_date, h, row["symbol"], row["point_forecast"])
+        )
+    conn.executemany(
+        "INSERT OR REPLACE INTO forecasts"
+        " (run_id, forecast_date, target_date, horizon, symbol, point_forecast)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        records,
+    )
+    conn.commit()
+
+
+def write_residuals(conn: sqlite3.Connection, run_id: int, residuals_df: pd.DataFrame) -> None:
+    """Insert residual rows for a given run."""
+    records = [
+        (run_id, r["date"], r["symbol"], r["residual"])
+        for _, r in residuals_df.iterrows()
+    ]
+    conn.executemany(
+        "INSERT OR REPLACE INTO vecm_residuals (run_id, date, symbol, residual)"
+        " VALUES (?, ?, ?, ?)",
+        records,
+    )
+    conn.commit()
