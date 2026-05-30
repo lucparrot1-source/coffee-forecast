@@ -6,6 +6,7 @@ import pytest
 
 from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.models.vecm import (
+    fit_vecm,
     load_aligned_data,
     select_lag_order,
 )
@@ -96,3 +97,12 @@ def test_select_lag_order_returns_int_in_range() -> None:
     lag = select_lag_order(endog, exog, maxlags=6)
     assert isinstance(lag, int)
     assert 1 <= lag <= 6
+
+
+def test_fit_vecm_returns_result_with_resid_and_llf() -> None:
+    endog, exog = _make_cointegrated(n=80)
+    result = fit_vecm(endog, exog, lag_order=2)
+    assert hasattr(result, "resid")
+    assert hasattr(result, "predict")
+    assert hasattr(result, "llf")
+    assert result.resid.shape[1] == 2  # one residual column per endogenous variable

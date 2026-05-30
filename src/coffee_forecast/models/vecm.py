@@ -9,7 +9,8 @@ from datetime import datetime, timezone  # noqa: F401
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.vector_ar.vecm import (
-    VECM,  # noqa: F401
+    VECM,
+    VECMResults,
     select_order,
 )
 
@@ -54,3 +55,19 @@ def select_lag_order(endog: pd.DataFrame, exog: pd.DataFrame, maxlags: int = 12)
     """Return AIC-optimal VAR lag order (minimum 1) for VECM pre-selection."""
     res = select_order(endog.values, maxlags=maxlags, deterministic="co", exog=exog.values)
     return max(1, int(res.aic))
+
+
+def fit_vecm(endog: pd.DataFrame, exog: pd.DataFrame, lag_order: int) -> VECMResults:
+    """Fit a VECM with coint_rank=1 and exogenous drivers.
+
+    k_ar_diff = lag_order - 1: number of lagged-difference terms.
+    deterministic='co': constant restricted to cointegration relation.
+    """
+    model = VECM(
+        endog.values,
+        k_ar_diff=lag_order - 1,
+        coint_rank=1,
+        exog=exog.values,
+        deterministic="co",
+    )
+    return model.fit()
