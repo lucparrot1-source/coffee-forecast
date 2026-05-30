@@ -35,7 +35,7 @@ The user (Luc) is non-technical. Explain key concepts and decisions in plain Eng
 
 ## Architecture (one-paragraph summary)
 
-A Python data layer ingests prices into SQLite behind a `PriceProvider` interface. `CompositeProvider` routes coffee + DXY symbols to `FREDProvider` and FX (BRL, VND, IDR) symbols to `AlphaVantageProvider`. A VECM (statsmodels) fits cointegration between Arabica and Robusta with BRL, VND, IDR, and DXY as exogenous drivers, producing point forecasts at 1/2/3-month horizons. A separate R subprocess fits a GAMLSS BCT distribution to the VECM forecast residuals conditional on regime indicators, giving full predictive distributions. A standalone spread model on log(Arabica/Robusta) provides a mean-reversion signal. A walk-forward backtest engine writes results to SQLite. Streamlit visualises everything; Quarto renders a monthly PDF. GitHub Actions runs the full pipeline on the 1st of each month and emails on failure.
+A Python data layer ingests prices into SQLite behind a `PriceProvider` interface. `CompositeProvider` routes coffee + DXY symbols to `FREDProvider` and FX (BRL, VND, IDR) symbols to `AlphaVantageProvider`. A VECM (statsmodels) fits cointegration between Arabica and Robusta with BRL, VND, IDR, and DXY as exogenous drivers, producing point forecasts at 1/2/3-month horizons. A separate R subprocess fits a GAMLSS **SHASH** distribution to the VECM forecast residuals conditional on rolling-vol regime (Low/Medium/High), giving full predictive distributions (p10/p25/p50/p75/p90). A hybrid combiner merges the two: `price_qX = vecm_point_forecast × exp(gamlss_residual_qX)`. A standalone spread model on log(Arabica/Robusta) provides a mean-reversion signal. A walk-forward backtest engine writes results to SQLite. Streamlit visualises everything; Quarto renders a monthly PDF. GitHub Actions runs the full pipeline on the 1st of each month and emails on failure.
 
 See the full plan in conversation history of the initial planning session, or rebuild it from the locked-in decisions above.
 
@@ -112,8 +112,14 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] `main()` + `__main__` guard with Resend alert wrapper
   - [x] 22 unit + integration tests; all passing
   - Note: Forecasts stored with full quantile band (p10/p25/p50/p75/p90 on price scale)
+  - Note: Each monthly run creates a new `model_runs` entry (model_type='hybrid'). Downstream queries for the current forecast use: `WHERE run_id = (SELECT id FROM model_runs WHERE model_type='hybrid' AND status='success' ORDER BY id DESC LIMIT 1)`
+  - Note: `p50 ≠ point_forecast` by design — `p50 = point_forecast × exp(gamlss_q50)`. Use `p50` for median coverage calculations in backtest, not `point_forecast`.
+  - Note: NaN quantiles (GAMLSS convergence failures) are warned and written as-is. Steps 8/9 must handle NaN rows explicitly (filter before metrics/display).
+  - Note: `backtest_results` schema updated this session — now includes `p25` and `p75` columns (previously only had p10/p50/p90). Ready for 50% interval coverage metrics in Step 8.
+  - Note: `gamlss.py` main() has a known bug — `log.error + return` on missing VECM run exits with code 0 (silent failure). Fix is tracked as a side task (spawned chip).
 - [ ] **Step 8 — Backtest engine** (walk-forward expanding window, metrics, benchmarks)
   - Note: **Key calibration check** — GAMLSS was fit on in-sample VECM residuals, which are smaller than true out-of-sample errors. Prediction intervals are therefore expected to be too narrow. The backtest must measure empirical coverage: if 80% of actual prices fall inside the p10–p90 band, we're calibrated; if consistently less (e.g. 55–60%), intervals need inflating. Track this explicitly as a metric in `accuracy_log`.
+  - Note: `backtest_results` table has columns p10, p25, p50, p75, p90 — all five quantiles available for 80% and 50% coverage metrics.
 - [ ] **Step 9 — Streamlit dashboard** (5 tabs: Current Forecast, Backtest, Live Accuracy, Spread Trade, Methodology)
 - [ ] **Step 10 — Quarto PDF template** (monthly auto-rendered report)
 - [ ] **Step 11 — GitHub Actions monthly pipeline** (ingest → refit → forecast → backtest → render PDF → commit → alert)
