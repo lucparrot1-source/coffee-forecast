@@ -96,8 +96,34 @@ def combine_forecasts(
     return pd.DataFrame(rows)
 
 
-def write_hybrid_forecasts(conn: sqlite3.Connection, run_id: int, combined_df: pd.DataFrame, forecast_date: str) -> None:
-    raise NotImplementedError
+def write_hybrid_forecasts(
+    conn: sqlite3.Connection,
+    run_id: int,
+    combined_df: pd.DataFrame,
+    forecast_date: str,
+) -> None:
+    """Write combined forecast rows (point + quantiles) to the forecasts table."""
+    records = []
+    for _, row in combined_df.iterrows():
+        h = int(row["horizon"])
+        target_date = (
+            pd.Timestamp(forecast_date) + pd.DateOffset(months=h)
+        ).strftime("%Y-%m-%d")
+        records.append((
+            run_id, forecast_date, target_date, h, str(row["symbol"]),
+            float(row["point_forecast"]),
+            float(row["p10"]), float(row["p25"]), float(row["p50"]),
+            float(row["p75"]), float(row["p90"]),
+        ))
+    conn.executemany(
+        "INSERT OR REPLACE INTO forecasts"
+        " (run_id, forecast_date, target_date, horizon, symbol,"
+        "  point_forecast, p10, p25, p50, p75, p90)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        records,
+    )
+    conn.commit()
+    log.info("Wrote %d hybrid forecast rows for run_id=%d", len(records), run_id)
 
 
 def run_hybrid_model(conn: sqlite3.Connection, vecm_run_id: int, gamlss_run_id: int) -> int:

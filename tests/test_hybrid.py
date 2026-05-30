@@ -175,3 +175,66 @@ def test_combine_forecasts_missing_symbol_raises() -> None:
     gamlss_no_rm = _make_gamlss_df()[_make_gamlss_df()["symbol"] == "KC=F"].reset_index(drop=True)
     with pytest.raises(ValueError, match="No GAMLSS params for symbol 'RM=F'"):
         combine_forecasts(_make_vecm_df(), gamlss_no_rm, "Low")
+
+
+# --- Tests for Task 4 ---
+
+def _make_combined_df() -> pd.DataFrame:
+    return pd.DataFrame({
+        "horizon": [1, 2, 1, 2],
+        "symbol": ["KC=F", "KC=F", "RM=F", "RM=F"],
+        "point_forecast": [180.0, 185.0, 100.0, 102.0],
+        "p10": [165.0, 169.0, 92.0, 93.0],
+        "p25": [173.0, 178.0, 96.0, 98.0],
+        "p50": [181.0, 186.0, 100.0, 102.0],
+        "p75": [189.0, 194.0, 104.0, 106.0],
+        "p90": [197.0, 202.0, 108.0, 110.0],
+    })
+
+
+def test_write_hybrid_forecasts_inserts_correct_row_count(mem_conn: sqlite3.Connection) -> None:
+    _seed_model_runs(mem_conn)
+    mem_conn.execute(
+        "INSERT INTO model_runs (id, run_at, model_type, train_start, train_end, params, metrics, status)"
+        " VALUES (3, '2024-01-01T00:00:00', 'hybrid', '2024-01-01', '2024-01-01', '{}', '{}', 'success')"
+    )
+    mem_conn.commit()
+    write_hybrid_forecasts(mem_conn, run_id=3, combined_df=_make_combined_df(), forecast_date="2024-01-01")
+    rows = mem_conn.execute("SELECT COUNT(*) FROM forecasts WHERE run_id = 3").fetchone()[0]
+    assert rows == 4
+
+
+def test_write_hybrid_forecasts_quantiles_stored(mem_conn: sqlite3.Connection) -> None:
+    _seed_model_runs(mem_conn)
+    mem_conn.execute(
+        "INSERT INTO model_runs (id, run_at, model_type, train_start, train_end, params, metrics, status)"
+        " VALUES (3, '2024-01-01T00:00:00', 'hybrid', '2024-01-01', '2024-01-01', '{}', '{}', 'success')"
+    )
+    mem_conn.commit()
+    write_hybrid_forecasts(mem_conn, run_id=3, combined_df=_make_combined_df(), forecast_date="2024-01-01")
+    row = mem_conn.execute(
+        "SELECT point_forecast, p10, p50, p90 FROM forecasts"
+        " WHERE run_id = 3 AND symbol = 'KC=F' AND horizon = 1"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == pytest.approx(180.0)
+    assert row[1] == pytest.approx(165.0)
+    assert row[2] == pytest.approx(181.0)
+    assert row[3] == pytest.approx(197.0)
+
+
+def test_write_hybrid_forecasts_target_dates(mem_conn: sqlite3.Connection) -> None:
+    _seed_model_runs(mem_conn)
+    mem_conn.execute(
+        "INSERT INTO model_runs (id, run_at, model_type, train_start, train_end, params, metrics, status)"
+        " VALUES (3, '2024-01-01T00:00:00', 'hybrid', '2024-01-01', '2024-01-01', '{}', '{}', 'success')"
+    )
+    mem_conn.commit()
+    write_hybrid_forecasts(mem_conn, run_id=3, combined_df=_make_combined_df(), forecast_date="2024-01-01")
+    targets = {
+        r[0]
+        for r in mem_conn.execute(
+            "SELECT target_date FROM forecasts WHERE run_id = 3 AND symbol = 'KC=F'"
+        ).fetchall()
+    }
+    assert targets == {"2024-02-01", "2024-03-01"}
