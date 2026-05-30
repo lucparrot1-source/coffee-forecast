@@ -86,8 +86,18 @@ CREATE TABLE IF NOT EXISTS spread_signals (
     half_life  REAL                      -- months, AR(1) expanding estimate
 );
 
+CREATE TABLE IF NOT EXISTS vecm_residuals (
+    id       INTEGER PRIMARY KEY,
+    run_id   INTEGER NOT NULL REFERENCES model_runs(id),
+    date     TEXT    NOT NULL,   -- YYYY-MM-01
+    symbol   TEXT    NOT NULL,   -- KC=F or RM=F
+    residual REAL    NOT NULL,
+    UNIQUE (run_id, date, symbol)
+);
+
 CREATE INDEX IF NOT EXISTS idx_prices_date_symbol       ON prices (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_monthly_date      ON prices_monthly (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_forecasts_target         ON forecasts (target_date, symbol);
 CREATE INDEX IF NOT EXISTS idx_backtest_target          ON backtest_results (target_date, symbol);
 CREATE INDEX IF NOT EXISTS idx_spread_signals_date      ON spread_signals (date);
+CREATE INDEX IF NOT EXISTS idx_vecm_residuals_run       ON vecm_residuals (run_id, date);
