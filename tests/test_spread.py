@@ -1,7 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from coffee_forecast.models.spread import compute_spread, compute_zscore, fit_ar1, generate_signal
+from coffee_forecast.models.spread import (
+    build_spread_df,
+    compute_spread,
+    compute_zscore,
+    fit_ar1,
+    generate_signal,
+)
 
 
 def _wide(kc: list[float], rm: list[float]) -> pd.DataFrame:
@@ -105,3 +111,37 @@ def test_signal_nan_preserves_state():
     assert sig.iloc[2] == -1   # entry short
     assert sig.iloc[3] == -1   # NaN → hold
     assert sig.iloc[4] == 0    # exit
+
+
+def test_build_spread_df_columns():
+    wide = _wide([100.0 + i for i in range(20)], [50.0 + i * 0.5 for i in range(20)])
+    result = build_spread_df(wide)
+    assert set(result.columns) >= {"date", "spread", "z_score", "signal", "half_life"}
+
+
+def test_build_spread_df_row_count():
+    wide = _wide([100.0 + i for i in range(20)], [50.0 + i * 0.5 for i in range(20)])
+    result = build_spread_df(wide)
+    assert len(result) == 20
+
+
+def test_build_spread_df_signal_dtype():
+    wide = _wide([100.0 + i for i in range(20)], [50.0 + i * 0.5 for i in range(20)])
+    result = build_spread_df(wide)
+    assert np.issubdtype(result["signal"].dtype, np.integer)
+
+
+def test_build_spread_df_date_format():
+    wide = _wide([100.0, 110.0], [50.0, 55.0])
+    result = build_spread_df(wide)
+    assert result["date"].iloc[0] == "2020-01-01"
+    assert result["date"].iloc[1] == "2020-02-01"
+
+
+def test_build_spread_df_early_halflife_nan():
+    # First two rows don't have enough data for AR(1) (need >= 3 observations)
+    wide = _wide([100.0 + i for i in range(10)], [50.0 + i * 0.5 for i in range(10)])
+    result = build_spread_df(wide)
+    assert np.isnan(result["half_life"].iloc[0])
+    assert np.isnan(result["half_life"].iloc[1])
+    assert not np.isnan(result["half_life"].iloc[-1])

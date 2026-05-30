@@ -67,3 +67,29 @@ def generate_signal(
                 current = 0
         signals.append(current)
     return pd.Series(signals, index=z.index, dtype=int)
+
+
+def build_spread_df(wide: pd.DataFrame) -> pd.DataFrame:
+    """Compute spread, z-score, signal, and expanding half-life for all months."""
+    spread = compute_spread(wide)
+    z = compute_zscore(spread)
+    sig = generate_signal(z)
+
+    half_lives: list[float] = []
+    for i in range(len(spread)):
+        s_slice = spread.iloc[: i + 1]
+        if len(s_slice) < 3:
+            half_lives.append(float("nan"))
+        else:
+            _, hl = fit_ar1(s_slice)
+            half_lives.append(hl)
+
+    return pd.DataFrame(
+        {
+            "date": spread.index.strftime("%Y-%m-%d"),
+            "spread": spread.values,
+            "z_score": z.values,
+            "signal": sig.values.astype(int),
+            "half_life": half_lives,
+        }
+    )
