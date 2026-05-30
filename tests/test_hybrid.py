@@ -238,3 +238,93 @@ def test_write_hybrid_forecasts_target_dates(mem_conn: sqlite3.Connection) -> No
         ).fetchall()
     }
     assert targets == {"2024-02-01", "2024-03-01"}
+
+
+# --- Tests for Task 5 ---
+
+def test_run_hybrid_model_returns_positive_run_id(mem_conn: sqlite3.Connection) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    assert run_id > 0
+
+
+def test_run_hybrid_model_writes_model_run_record(mem_conn: sqlite3.Connection) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    row = mem_conn.execute(
+        "SELECT model_type, status FROM model_runs WHERE id = ?", (run_id,)
+    ).fetchone()
+    assert row == ("hybrid", "success")
+
+
+def test_run_hybrid_model_writes_six_forecast_rows(mem_conn: sqlite3.Connection) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    count = mem_conn.execute(
+        "SELECT COUNT(*) FROM forecasts WHERE run_id = ?", (run_id,)
+    ).fetchone()[0]
+    assert count == 6
+
+
+def test_run_hybrid_model_forecasts_have_ordered_quantiles(mem_conn: sqlite3.Connection) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    rows = mem_conn.execute(
+        "SELECT p10, p25, p50, p75, p90 FROM forecasts WHERE run_id = ?", (run_id,)
+    ).fetchall()
+    assert len(rows) == 6
+    for p10, p25, p50, p75, p90 in rows:
+        assert p10 < p25 < p50 < p75 < p90, (
+            f"Quantile ordering violated: {p10=} {p25=} {p50=} {p75=} {p90=}"
+        )
+
+
+def test_run_hybrid_model_records_regime_and_run_ids_in_params(
+    mem_conn: sqlite3.Connection,
+) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    params_json = mem_conn.execute(
+        "SELECT params FROM model_runs WHERE id = ?", (run_id,)
+    ).fetchone()[0]
+    params = json.loads(params_json)
+    assert params["regime"] in {"Low", "Medium", "High"}
+    assert params["vecm_run_id"] == vecm_run_id
+    assert params["gamlss_run_id"] == gamlss_run_id
+
+
+def test_run_hybrid_model_returns_minus_one_when_no_vecm_forecasts(
+    mem_conn: sqlite3.Connection,
+) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    # No vecm forecasts seeded — load_vecm_forecasts will return empty DataFrame
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    result = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    assert result == -1
+
+
+def test_run_hybrid_model_returns_minus_one_when_no_gamlss_params(
+    mem_conn: sqlite3.Connection,
+) -> None:
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+    # No gamlss params seeded — load_gamlss_quantiles will return empty DataFrame
+    _seed_kc_prices(mem_conn)
+    result = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+    assert result == -1

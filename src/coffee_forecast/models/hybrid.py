@@ -126,5 +126,69 @@ def write_hybrid_forecasts(
     log.info("Wrote %d hybrid forecast rows for run_id=%d", len(records), run_id)
 
 
-def run_hybrid_model(conn: sqlite3.Connection, vecm_run_id: int, gamlss_run_id: int) -> int:
-    raise NotImplementedError
+def run_hybrid_model(
+    conn: sqlite3.Connection,
+    vecm_run_id: int,
+    gamlss_run_id: int,
+) -> int:
+    """Orchestrate: load VECM forecasts + GAMLSS quantiles → combine → write DB.
+
+    Returns the model_runs.id of the hybrid run, or -1 if skipped due to
+    missing data.
+    """
+    vecm_df = load_vecm_forecasts(conn, vecm_run_id)
+    if vecm_df.empty:
+        log.warning("No VECM forecasts for run_id=%d — skipping hybrid", vecm_run_id)
+        return -1
+
+    gamlss_df = load_gamlss_quantiles(conn, gamlss_run_id)
+    if gamlss_df.empty:
+        log.warning("No GAMLSS quantiles for run_id=%d — skipping hybrid", gamlss_run_id)
+        return -1
+
+    regime = get_current_regime(conn)
+    log.info("Current volatility regime: %s", regime)
+
+    combined_df = combine_forecasts(vecm_df, gamlss_df, regime)
+
+    quantile_cols = ["p10", "p25", "p50", "p75", "p90"]
+    nan_count = int(combined_df[quantile_cols].isna().sum().sum())
+    if nan_count > 0:
+        log.warning(
+            "Combined forecasts contain %d NaN quantile values — "
+            "GAMLSS may have failed to converge for some symbol/regime combinations",
+            nan_count,
+        )
+
+    run_meta = conn.execute(
+        "SELECT train_end FROM model_runs WHERE id = ?", (vecm_run_id,)
+    ).fetchone()
+    forecast_date = run_meta[0] if run_meta else ""
+
+    cur = conn.execute(
+        "INSERT INTO model_runs"
+        " (run_at, model_type, train_start, train_end, params, metrics, status)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            datetime.now(UTC).isoformat(),
+            "hybrid",
+            forecast_date,
+            forecast_date,
+            json.dumps({
+                "vecm_run_id": vecm_run_id,
+                "gamlss_run_id": gamlss_run_id,
+                "regime": regime,
+            }),
+            "{}",
+            "success",
+        ),
+    )
+    conn.commit()
+    run_id = int(cur.lastrowid)  # type: ignore[arg-type]
+
+    write_hybrid_forecasts(conn, run_id, combined_df, forecast_date)
+    log.info(
+        "Hybrid run complete: run_id=%d, regime=%s, rows=%d",
+        run_id, regime, len(combined_df),
+    )
+    return run_id
