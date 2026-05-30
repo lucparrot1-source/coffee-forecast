@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS backtest_results (
     actual          REAL,
     point_forecast  REAL,
     p10             REAL,
+    p25             REAL,
     p50             REAL,
+    p75             REAL,
     p90             REAL
 );
 
@@ -95,6 +97,25 @@ CREATE TABLE IF NOT EXISTS vecm_residuals (
     UNIQUE (run_id, date, symbol)
 );
 
+CREATE TABLE IF NOT EXISTS gamlss_params (
+    id      INTEGER PRIMARY KEY,
+    run_id  INTEGER NOT NULL REFERENCES model_runs(id),
+    symbol  TEXT    NOT NULL,   -- KC=F or RM=F
+    regime  TEXT    NOT NULL,   -- Low | Medium | High
+    mu      REAL,
+    sigma   REAL,
+    nu      REAL,
+    tau     REAL,
+    q10     REAL,
+    q25     REAL,
+    q50     REAL,
+    q75     REAL,
+    q90     REAL,
+    n_obs   INTEGER,
+    UNIQUE (run_id, symbol, regime)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gamlss_params_run        ON gamlss_params (run_id);
 CREATE INDEX IF NOT EXISTS idx_prices_date_symbol       ON prices (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_prices_monthly_date      ON prices_monthly (date, symbol);
 CREATE INDEX IF NOT EXISTS idx_forecasts_target         ON forecasts (target_date, symbol);
