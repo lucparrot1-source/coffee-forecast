@@ -1,9 +1,9 @@
-import argparse  # noqa: F401
+import argparse
 import json
 import logging
-import os  # noqa: F401
+import os
 import sqlite3
-import traceback  # noqa: F401
+import traceback
 from datetime import UTC, datetime
 
 import numpy as np
@@ -14,10 +14,10 @@ from statsmodels.tsa.vector_ar.vecm import (
     select_order,
 )
 
-from coffee_forecast.alerts import send_pipeline_alert  # noqa: F401
-from coffee_forecast.db import get_connection  # noqa: F401
-from coffee_forecast.db.migrations import ensure_schema  # noqa: F401
-from coffee_forecast.logging_config import configure_logging  # noqa: F401
+from coffee_forecast.alerts import send_pipeline_alert
+from coffee_forecast.db import get_connection
+from coffee_forecast.db.migrations import ensure_schema
+from coffee_forecast.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
 
@@ -172,3 +172,66 @@ def write_residuals(conn: sqlite3.Connection, run_id: int, residuals_df: pd.Data
         records,
     )
     conn.commit()
+
+
+def run_vecm_model(conn: sqlite3.Connection) -> int:
+    """Orchestrate load → lag-select → fit → residuals → forecasts → write DB.
+
+    Returns the model_runs.id of the completed run, or -1 if no data found.
+    """
+    endog, exog = load_aligned_data(conn)
+    if endog.empty:
+        log.warning("No aligned monthly data found for all 6 symbols — skipping VECM")
+        return -1
+
+    lag_order = select_lag_order(endog, exog)
+    log.info("Selected lag order: %d (AIC)", lag_order)
+
+    result = fit_vecm(endog, exog, lag_order)
+    log.info("VECM fitted: llf=%.4f, n_obs=%d", result.llf, len(endog))
+
+    residuals_df = extract_residuals(result, endog)
+    forecasts_df = generate_forecasts(result, endog.columns.tolist(), exog.shape[1])
+
+    train_start = endog.index[0].strftime("%Y-%m-%d")
+    train_end = endog.index[-1].strftime("%Y-%m-%d")
+
+    params: dict[str, object] = {
+        "lag_order": lag_order,
+        "coint_rank": 1,
+        "exog_symbols": exog.columns.tolist(),
+        "train_start": train_start,
+        "train_end": train_end,
+        "n_obs": len(endog),
+    }
+    metrics: dict[str, object] = {"log_likelihood": float(result.llf)}
+
+    run_id = write_run(conn, params, metrics)
+    write_forecasts(conn, run_id, forecasts_df, train_end)
+    write_residuals(conn, run_id, residuals_df)
+
+    log.info(
+        "VECM run complete: run_id=%d, forecasts=%d, residuals=%d",
+        run_id, len(forecasts_df), len(residuals_df),
+    )
+    return run_id
+
+
+def main() -> None:
+    configure_logging()
+    parser = argparse.ArgumentParser(description="Fit VECM and write forecasts to DB")
+    parser.add_argument("--db", default=None, help="Path to SQLite DB (overrides COFFEE_DB_PATH)")
+    args = parser.parse_args()
+    if args.db:
+        os.environ["COFFEE_DB_PATH"] = args.db
+    conn = get_connection()
+    ensure_schema(conn)
+    run_vecm_model(conn)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        send_pipeline_alert(__file__, traceback.format_exc())
+        raise

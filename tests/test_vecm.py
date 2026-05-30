@@ -10,6 +10,7 @@ from coffee_forecast.models.vecm import (
     fit_vecm,
     generate_forecasts,
     load_aligned_data,
+    run_vecm_model,
     select_lag_order,
     write_forecasts,
     write_residuals,
@@ -185,3 +186,32 @@ def test_write_residuals_inserts_rows(mem_conn: sqlite3.Connection) -> None:
         "SELECT COUNT(*) FROM vecm_residuals WHERE run_id=?", (run_id,)
     ).fetchone()[0]
     assert count == 2
+
+
+def test_run_vecm_model_smoke(mem_conn: sqlite3.Connection) -> None:
+    endog, exog = _make_cointegrated(n=80)
+    _populate_prices_monthly(mem_conn, endog, exog)
+
+    run_id = run_vecm_model(mem_conn)
+
+    assert run_id > 0
+
+    fc_count = mem_conn.execute(
+        "SELECT COUNT(*) FROM forecasts WHERE run_id=?", (run_id,)
+    ).fetchone()[0]
+    assert fc_count == 6  # 3 horizons × 2 symbols
+
+    res_count = mem_conn.execute(
+        "SELECT COUNT(*) FROM vecm_residuals WHERE run_id=?", (run_id,)
+    ).fetchone()[0]
+    assert res_count > 0
+
+    run_row = mem_conn.execute(
+        "SELECT status, model_type FROM model_runs WHERE id=?", (run_id,)
+    ).fetchone()
+    assert run_row == ("success", "vecm")
+
+
+def test_run_vecm_model_empty_db_returns_minus_one(mem_conn: sqlite3.Connection) -> None:
+    result = run_vecm_model(mem_conn)
+    assert result == -1
