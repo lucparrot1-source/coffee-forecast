@@ -121,3 +121,57 @@ def test_get_current_regime_returns_valid_label(mem_conn: sqlite3.Connection) ->
 def test_get_current_regime_raises_when_no_data(mem_conn: sqlite3.Connection) -> None:
     with pytest.raises(ValueError, match="no KC=F price data"):
         get_current_regime(mem_conn)
+
+
+# --- Tests for Task 3 ---
+
+def _make_vecm_df() -> pd.DataFrame:
+    return pd.DataFrame({
+        "horizon": [1, 2, 1, 2],
+        "symbol": ["KC=F", "KC=F", "RM=F", "RM=F"],
+        "point_forecast": [180.0, 185.0, 100.0, 102.0],
+    })
+
+
+def _make_gamlss_df() -> pd.DataFrame:
+    return pd.DataFrame({
+        "symbol": ["KC=F", "RM=F", "KC=F", "RM=F"],
+        "regime": ["Low", "Low", "Medium", "Medium"],
+        "q10": [-0.07, -0.08, -0.11, -0.12],
+        "q25": [-0.03, -0.04, -0.05, -0.06],
+        "q50": [0.01, 0.00, 0.00, 0.00],
+        "q75": [0.05, 0.04, 0.05, 0.06],
+        "q90": [0.09, 0.08, 0.11, 0.12],
+    })
+
+
+def test_combine_forecasts_output_shape() -> None:
+    result = combine_forecasts(_make_vecm_df(), _make_gamlss_df(), "Low")
+    assert result.shape == (4, 8)
+    assert set(result.columns) == {"horizon", "symbol", "point_forecast", "p10", "p25", "p50", "p75", "p90"}
+
+
+def test_combine_forecasts_quantile_math() -> None:
+    result = combine_forecasts(_make_vecm_df(), _make_gamlss_df(), "Low")
+    kc_h1 = result[(result["symbol"] == "KC=F") & (result["horizon"] == 1)].iloc[0]
+    assert kc_h1["point_forecast"] == pytest.approx(180.0)
+    assert kc_h1["p10"] == pytest.approx(180.0 * np.exp(-0.07), rel=1e-6)
+    assert kc_h1["p50"] == pytest.approx(180.0 * np.exp(0.01), rel=1e-6)
+    assert kc_h1["p90"] == pytest.approx(180.0 * np.exp(0.09), rel=1e-6)
+
+
+def test_combine_forecasts_interval_ordering() -> None:
+    result = combine_forecasts(_make_vecm_df(), _make_gamlss_df(), "Low")
+    for _, row in result.iterrows():
+        assert row["p10"] < row["p25"] < row["p50"] < row["p75"] < row["p90"]
+
+
+def test_combine_forecasts_missing_regime_raises() -> None:
+    with pytest.raises(ValueError, match="No GAMLSS params for regime 'High'"):
+        combine_forecasts(_make_vecm_df(), _make_gamlss_df(), "High")
+
+
+def test_combine_forecasts_missing_symbol_raises() -> None:
+    gamlss_no_rm = _make_gamlss_df()[_make_gamlss_df()["symbol"] == "KC=F"].reset_index(drop=True)
+    with pytest.raises(ValueError, match="No GAMLSS params for symbol 'RM=F'"):
+        combine_forecasts(_make_vecm_df(), gamlss_no_rm, "Low")

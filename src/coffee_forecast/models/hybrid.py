@@ -57,8 +57,43 @@ def get_current_regime(conn: sqlite3.Connection) -> str:
     return str(regime_series.iloc[-1])
 
 
-def combine_forecasts(vecm_df: pd.DataFrame, gamlss_df: pd.DataFrame, regime: str) -> pd.DataFrame:
-    raise NotImplementedError
+def combine_forecasts(
+    vecm_df: pd.DataFrame,
+    gamlss_df: pd.DataFrame,
+    regime: str,
+) -> pd.DataFrame:
+    """Combine VECM point forecasts with GAMLSS quantile offsets.
+
+    GAMLSS quantiles are log-space residuals. Because the VECM point forecast
+    is exp(log_vecm_forecast), the combined price quantile is:
+        price_qX = point_forecast * exp(gamlss_qX)
+
+    Returns DataFrame: horizon, symbol, point_forecast, p10, p25, p50, p75, p90.
+    Raises ValueError if the given regime or any required symbol is absent from gamlss_df.
+    """
+    regime_params = gamlss_df[gamlss_df["regime"] == regime]
+    if regime_params.empty:
+        raise ValueError(f"No GAMLSS params for regime '{regime}'")
+    regime_params = regime_params.set_index("symbol")
+
+    rows = []
+    for _, row in vecm_df.iterrows():
+        sym = str(row["symbol"])
+        if sym not in regime_params.index:
+            raise ValueError(f"No GAMLSS params for symbol '{sym}' in regime '{regime}'")
+        pf = float(row["point_forecast"])
+        q = regime_params.loc[sym]
+        rows.append({
+            "horizon": int(row["horizon"]),
+            "symbol": sym,
+            "point_forecast": pf,
+            "p10": pf * np.exp(float(q["q10"])),
+            "p25": pf * np.exp(float(q["q25"])),
+            "p50": pf * np.exp(float(q["q50"])),
+            "p75": pf * np.exp(float(q["q75"])),
+            "p90": pf * np.exp(float(q["q90"])),
+        })
+    return pd.DataFrame(rows)
 
 
 def write_hybrid_forecasts(conn: sqlite3.Connection, run_id: int, combined_df: pd.DataFrame, forecast_date: str) -> None:
