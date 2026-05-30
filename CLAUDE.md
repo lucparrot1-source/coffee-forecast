@@ -101,6 +101,24 @@ _(none currently open — all Phase 1 decisions resolved)_
 
 ---
 
+## Post-Step-7 review: VECM assumptions to revisit
+
+**Remind Luc to review these once Step 7 (hybrid combiner) is complete.** These are known simplifications baked into the Step 5 VECM — not bugs, but conscious shortcuts that should be examined before the system goes live.
+
+1. **Cointegration rank hardcoded at r=1.** Confirmed by EDA (Engle-Granger p=0.009) but never re-tested on shorter windows. If the Arabica/Robusta relationship structurally breaks, the model won't detect it.
+
+2. **Naïve FX forecast (freeze at last observed value).** For h=2 and h=3, we hold BRL, VND, IDR, DXY flat. A weakening BRL in particular has a large effect on Arabica dollar prices. Consider: auto-regressive FX forecasts, or scenario analysis (BRL +10% / -10%).
+
+3. **Lag order re-selected each run but never bounded by domain knowledge.** AIC picked lag=1 on 136 months. If a drought or policy shock plays out over 3–4 months, lag=1 misses that momentum. Consider: fixing lag=2 or 3, or reviewing what AIC selects over time.
+
+4. **Linear, time-invariant coefficients over the full 2014–2026 window.** The 2021–22 Arabica price spike and post-COVID demand recovery are inside the training data and pulling the equilibrium estimate. Consider: rolling or expanding window with a minimum burn-in, or a structural break test.
+
+5. **Training window determined by VND/IDR data availability (~2014).** Dropping VND/IDR would unlock 15+ extra years of Arabica/Robusta/BRL/DXY data (back to 2000). Worth testing whether the longer window produces more stable coefficients even without the two smaller FX drivers.
+
+6. **Residuals assumed well-behaved for GAMLSS.** If VECM is misspecified, residuals carry that misspecification into the distribution model in Step 6. Check residual ACF and a ARCH test after Step 7 is assembled end-to-end.
+
+---
+
 ## Working rules
 
 - Before starting any new step, give a one-paragraph plain-English summary of what we are about to build and why.
