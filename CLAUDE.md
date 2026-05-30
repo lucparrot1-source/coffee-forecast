@@ -25,7 +25,7 @@ The user (Luc) is non-technical. Explain key concepts and decisions in plain Eng
 | FX in model | BRL, VND, IDR, DXY as **exogenous drivers** in VECM (not endogenous — Johansen found r=0 in 4-variable system) |
 | TICKERS | `["KC=F", "RM=F", "BRL=X", "VND=X", "IDR=X", "DX-Y.NYB"]` — all stored in `prices` table |
 | Combiner | Sequential — VECM produces point forecast, GAMLSS models distribution around it |
-| GAMLSS family | BCT (Box-Cox-t) — fat tails + skew |
+| GAMLSS family | SHASH (sinh-arcsinh) — fat tails + skew, full real line (BCT replaced: BCT requires positive data; VECM residuals are centred on zero) |
 | Spread signal | OU / AR(1) on log(Arabica) − log(Robusta), entry threshold \|z\| > 2 |
 | Storage | SQLite in repo |
 | Repo name | `coffee-forecast` (initialised in this directory) |
@@ -88,9 +88,32 @@ See the full plan in conversation history of the initial planning session, or re
   - [x] `main()` + `__main__` guard with Resend alert wrapper
   - [x] 47 unit + integration tests; full pipeline smoke test passed
   - Note: 2-variable VECM [KC=F, RM=F] with 4 exog (BRL=X, VND=X, IDR=X, DX-Y.NYB), coint_rank=1 hardcoded (EDA confirmed), AIC lag selection up to 12, naïve Δexog=0 forecast assumption, residuals stored in `vecm_residuals` table for GAMLSS (Step 6)
-- [ ] **Step 6 — R/GAMLSS subprocess bridge** (BCT fit on VECM residuals)
-- [ ] **Step 7 — Hybrid combiner** (sequential mean + distribution)
+- [x] **Step 6 — R/GAMLSS subprocess bridge** (SHASH fit on VECM residuals)
+  - [x] `r/gamlss_fit.R` — Rscript: reads input CSV, fits SHASH per symbol × regime, writes quantiles (q10/25/50/75/90) + BCT params to output CSV
+  - [x] `compute_regime_labels` — 12-month rolling vol on KC=F, Low/Med/High by 33rd/67th percentile
+  - [x] `build_gamlss_input` — joins vecm_residuals + regime labels on date
+  - [x] `call_rscript` — subprocess with 120s timeout, captures stdout/stderr, raises on nonzero exit
+  - [x] `parse_gamlss_output` — validates CSV columns, allows NA rows (convergence failures)
+  - [x] `write_gamlss_params` — upserts into `gamlss_params` table (INSERT OR REPLACE)
+  - [x] `run_gamlss_model(conn, vecm_run_id)` — full orchestration, pending→success/failed in model_runs
+  - [x] `main()` + `__main__` guard with Resend alert wrapper; `--vecm-run-id` defaults to latest
+  - [x] `gamlss_params` table added to schema.sql (run_id, symbol, regime, mu/sigma/nu/tau, q10–q90, n_obs)
+  - [x] 29 tests (28 pass without R, 1 skipped without Rscript, 1 `r_required` integration test)
+  - Note: SHASH used instead of locked-in BCT — BCT requires positive data, VECM residuals are centred on zero (can be negative). SHASH has the same 4-parameter flexibility.
+  - Note: KC=F and RM=F fitted separately (independent BCT models per symbol)
+  - Note: R not yet installed — run `pytest -m r_required` after `install.packages('gamlss')` in R
+- [x] **Step 7 — Hybrid combiner** (sequential mean + distribution)
+  - [x] `load_vecm_forecasts` — reads point forecasts from VECM run
+  - [x] `load_gamlss_quantiles` — reads SHASH residual quantiles from GAMLSS run
+  - [x] `get_current_regime` — computes volatility regime label for inference
+  - [x] `combine_forecasts` — merges VECM points with GAMLSS quantiles (price_qX = point × exp(residual_qX))
+  - [x] `write_hybrid_forecasts` — stores combined point + quantiles to forecasts table
+  - [x] `run_hybrid_model` — orchestrator with pending/success/failed tracking
+  - [x] `main()` + `__main__` guard with Resend alert wrapper
+  - [x] 22 unit + integration tests; all passing
+  - Note: Forecasts stored with full quantile band (p10/p25/p50/p75/p90 on price scale)
 - [ ] **Step 8 — Backtest engine** (walk-forward expanding window, metrics, benchmarks)
+  - Note: **Key calibration check** — GAMLSS was fit on in-sample VECM residuals, which are smaller than true out-of-sample errors. Prediction intervals are therefore expected to be too narrow. The backtest must measure empirical coverage: if 80% of actual prices fall inside the p10–p90 band, we're calibrated; if consistently less (e.g. 55–60%), intervals need inflating. Track this explicitly as a metric in `accuracy_log`.
 - [ ] **Step 9 — Streamlit dashboard** (5 tabs: Current Forecast, Backtest, Live Accuracy, Spread Trade, Methodology)
 - [ ] **Step 10 — Quarto PDF template** (monthly auto-rendered report)
 - [ ] **Step 11 — GitHub Actions monthly pipeline** (ingest → refit → forecast → backtest → render PDF → commit → alert)
