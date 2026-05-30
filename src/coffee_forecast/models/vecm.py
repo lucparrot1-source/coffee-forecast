@@ -8,7 +8,10 @@ from datetime import datetime, timezone  # noqa: F401
 
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.vector_ar.vecm import VECM, select_order  # noqa: F401
+from statsmodels.tsa.vector_ar.vecm import (
+    VECM,  # noqa: F401
+    select_order,
+)
 
 from coffee_forecast.alerts import send_pipeline_alert  # noqa: F401
 from coffee_forecast.db import get_connection  # noqa: F401
