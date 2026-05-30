@@ -1,19 +1,19 @@
-import argparse
-import json
+import argparse  # noqa: F401
+import json  # noqa: F401
 import logging
-import os
+import os  # noqa: F401
 import sqlite3
-import traceback
-from datetime import datetime, timezone
+import traceback  # noqa: F401
+from datetime import datetime, timezone  # noqa: F401
 
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.vector_ar.vecm import VECM, select_order
+from statsmodels.tsa.vector_ar.vecm import VECM, select_order  # noqa: F401
 
-from coffee_forecast.alerts import send_pipeline_alert
-from coffee_forecast.db import get_connection
-from coffee_forecast.db.migrations import ensure_schema
-from coffee_forecast.logging_config import configure_logging
+from coffee_forecast.alerts import send_pipeline_alert  # noqa: F401
+from coffee_forecast.db import get_connection  # noqa: F401
+from coffee_forecast.db.migrations import ensure_schema  # noqa: F401
+from coffee_forecast.logging_config import configure_logging  # noqa: F401
 
 log = logging.getLogger(__name__)
 

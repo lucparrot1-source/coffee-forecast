@@ -29,11 +29,15 @@ def _make_cointegrated(n: int = 80, seed: int = 42) -> tuple[pd.DataFrame, pd.Da
     dxy = rng.standard_normal(n) * 0.1
     dates = pd.date_range("2014-01-01", periods=n, freq="MS")
     endog = pd.DataFrame({"KC=F": kc, "RM=F": rm}, index=dates)
-    exog = pd.DataFrame({"BRL=X": brl, "VND=X": vnd, "IDR=X": idr, "DX-Y.NYB": dxy}, index=dates)
+    exog = pd.DataFrame(
+        {"BRL=X": brl, "VND=X": vnd, "IDR=X": idr, "DX-Y.NYB": dxy}, index=dates
+    )
     return endog, exog
 
 
-def _populate_prices_monthly(conn: sqlite3.Connection, endog: pd.DataFrame, exog: pd.DataFrame) -> None:
+def _populate_prices_monthly(
+    conn: sqlite3.Connection, endog: pd.DataFrame, exog: pd.DataFrame
+) -> None:
     """Insert exp(log-price) rows into prices_monthly for smoke tests."""
     rows = []
     for dt in endog.index:
@@ -50,7 +54,12 @@ def _populate_prices_monthly(conn: sqlite3.Connection, endog: pd.DataFrame, exog
 
 
 def test_vecm_residuals_table_exists(mem_conn: sqlite3.Connection) -> None:
-    tables = {r[0] for r in mem_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    tables = {
+        r[0]
+        for r in mem_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
     assert "vecm_residuals" in tables
 
 
@@ -68,8 +77,11 @@ def test_load_aligned_data_log_transform(mem_conn: sqlite3.Connection) -> None:
     endog, exog = _make_cointegrated(n=20)
     _populate_prices_monthly(mem_conn, endog, exog)
     endog_out, _ = load_aligned_data(mem_conn)
-    # _populate_prices_monthly stores exp(log-scale data), so load should recover original log values
-    np.testing.assert_allclose(endog_out["KC=F"].values, endog["KC=F"].values, atol=1e-10)
+    # _populate_prices_monthly stores exp(log-scale data), so load should recover
+    # original log values
+    np.testing.assert_allclose(
+        endog_out["KC=F"].values, endog["KC=F"].values, atol=1e-10
+    )
 
 
 def test_load_aligned_data_empty_db(mem_conn: sqlite3.Connection) -> None:
