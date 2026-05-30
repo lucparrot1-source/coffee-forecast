@@ -108,3 +108,16 @@ def test_load_gamlss_quantiles_returns_six_rows(mem_conn: sqlite3.Connection) ->
 def test_load_gamlss_quantiles_empty_for_unknown_run(mem_conn: sqlite3.Connection) -> None:
     df = load_gamlss_quantiles(mem_conn, gamlss_run_id=999)
     assert df.empty
+
+
+# --- Tests for Task 2 ---
+
+def test_get_current_regime_returns_valid_label(mem_conn: sqlite3.Connection) -> None:
+    _seed_kc_prices(mem_conn, n=48)
+    regime = get_current_regime(mem_conn)
+    assert regime in {"Low", "Medium", "High"}
+
+
+def test_get_current_regime_raises_when_no_data(mem_conn: sqlite3.Connection) -> None:
+    with pytest.raises(ValueError, match="no KC=F price data"):
+        get_current_regime(mem_conn)

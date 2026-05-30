@@ -45,7 +45,16 @@ def load_gamlss_quantiles(conn: sqlite3.Connection, gamlss_run_id: int) -> pd.Da
 
 
 def get_current_regime(conn: sqlite3.Connection) -> str:
-    raise NotImplementedError
+    """Return the volatility regime label for the latest available KC=F month.
+
+    Reuses the same 12-month rolling-vol logic as GAMLSS training so that
+    the regime used at inference time is consistent with the one used at fit time.
+    Raises ValueError if no KC=F price data is present.
+    """
+    regime_series = compute_regime_labels(conn)
+    if regime_series.empty:
+        raise ValueError("Cannot determine current regime: no KC=F price data")
+    return str(regime_series.iloc[-1])
 
 
 def combine_forecasts(vecm_df: pd.DataFrame, gamlss_df: pd.DataFrame, regime: str) -> pd.DataFrame:
