@@ -24,9 +24,9 @@ _COLUMNS = ["date", "symbol", "open", "high", "low", "close", "volume", "adj_clo
 # FRED series codes (coffee prices + DXY)
 # ---------------------------------------------------------------------------
 _FRED_CODE: dict[str, str] = {
-    "KC=F": "PCOFFOTMUSDM",   # Arabica (Other Mild Arabicas), US¢/lb, monthly
-    "RM=F": "PCOFFROBUSDM",   # Robusta, US¢/lb, monthly
-    "DX-Y.NYB": "DTWEXBGS",   # Broad Trade-Weighted USD Index, daily
+    "KC=F": "PCOFFOTMUSDM",  # Arabica (Other Mild Arabicas), US¢/lb, monthly
+    "RM=F": "PCOFFROBUSDM",  # Robusta, US¢/lb, monthly
+    "DX-Y.NYB": "DTWEXBGS",  # Broad Trade-Weighted USD Index, daily
 }
 
 # ---------------------------------------------------------------------------
@@ -34,9 +34,9 @@ _FRED_CODE: dict[str, str] = {
 # All quoted as foreign currency units per 1 USD
 # ---------------------------------------------------------------------------
 _AV_FX: dict[str, tuple[str, str]] = {
-    "BRL=X": ("USD", "BRL"),   # Brazilian Reals per USD
-    "VND=X": ("USD", "VND"),   # Vietnamese Dong per USD
-    "IDR=X": ("USD", "IDR"),   # Indonesian Rupiah per USD
+    "BRL=X": ("USD", "BRL"),  # Brazilian Reals per USD
+    "VND=X": ("USD", "VND"),  # Vietnamese Dong per USD
+    "IDR=X": ("USD", "IDR"),  # Indonesian Rupiah per USD
 }
 
 
@@ -50,6 +50,7 @@ class PriceProvider(ABC):
 # ---------------------------------------------------------------------------
 # FRED provider — coffee prices and DXY
 # ---------------------------------------------------------------------------
+
 
 class FREDProvider(PriceProvider):
     """Fetches prices from the St. Louis Fed FRED API via pandas-datareader.
@@ -100,6 +101,7 @@ class FREDProvider(PriceProvider):
 # Alpha Vantage provider — FX pairs (BRL, VND, IDR)
 # ---------------------------------------------------------------------------
 
+
 class AlphaVantageProvider(PriceProvider):
     """Fetches monthly FX rates from Alpha Vantage (FX_MONTHLY endpoint).
 
@@ -113,9 +115,7 @@ class AlphaVantageProvider(PriceProvider):
     def __init__(self) -> None:
         self._api_key = os.environ.get("ALPHA_VANTAGE_API_KEY", "")
         if not self._api_key:
-            raise ValueError(
-                "ALPHA_VANTAGE_API_KEY not set — cannot use AlphaVantageProvider"
-            )
+            raise ValueError("ALPHA_VANTAGE_API_KEY not set — cannot use AlphaVantageProvider")
 
     def fetch(self, symbols: list[str], start: date, end: date) -> pd.DataFrame:
         rows: list[pd.DataFrame] = []
@@ -153,18 +153,14 @@ class AlphaVantageProvider(PriceProvider):
         resp.raise_for_status()
         data = resp.json()
         if "Time Series FX (Monthly)" not in data:
-            raise ValueError(
-                f"Unexpected Alpha Vantage response keys: {list(data.keys())}"
-            )
+            raise ValueError(f"Unexpected Alpha Vantage response keys: {list(data.keys())}")
         ts = data["Time Series FX (Monthly)"]
         df = pd.DataFrame.from_dict(ts, orient="index")
         df.index = pd.to_datetime(df.index)
         df.columns = [c.split(". ")[1] for c in df.columns]  # "1. open" → "open"
         return df.astype(float).sort_index()
 
-    def _normalise(
-        self, raw: pd.DataFrame, sym: str, start: date, end: date
-    ) -> pd.DataFrame:
+    def _normalise(self, raw: pd.DataFrame, sym: str, start: date, end: date) -> pd.DataFrame:
         mask = (raw.index >= pd.Timestamp(start)) & (raw.index <= pd.Timestamp(end))
         raw = raw[mask].copy()
         out = pd.DataFrame(index=raw.index)
@@ -183,6 +179,7 @@ class AlphaVantageProvider(PriceProvider):
 # ---------------------------------------------------------------------------
 # Composite provider — routes each symbol to the right backend
 # ---------------------------------------------------------------------------
+
 
 class CompositeProvider(PriceProvider):
     """Routes each symbol to the appropriate underlying provider.
@@ -228,9 +225,7 @@ def make_default_provider() -> PriceProvider:
     try:
         av = AlphaVantageProvider()
     except ValueError:
-        log.warning(
-            "ALPHA_VANTAGE_API_KEY not set — BRL=X, VND=X, IDR=X will be skipped"
-        )
+        log.warning("ALPHA_VANTAGE_API_KEY not set — BRL=X, VND=X, IDR=X will be skipped")
         return fred
 
     return CompositeProvider(

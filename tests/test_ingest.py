@@ -19,16 +19,18 @@ def conn(tmp_path, monkeypatch):
 
 
 def _make_df(symbol: str, dates: list[str]) -> pd.DataFrame:
-    return pd.DataFrame({
-        "date": dates,
-        "symbol": symbol,
-        "open": 100.0,
-        "high": 101.0,
-        "low": 99.0,
-        "close": 100.5,
-        "volume": 1000.0,
-        "adj_close": 100.5,
-    })
+    return pd.DataFrame(
+        {
+            "date": dates,
+            "symbol": symbol,
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1000.0,
+            "adj_close": 100.5,
+        }
+    )
 
 
 def test_latest_date_empty_table(conn):
@@ -36,9 +38,7 @@ def test_latest_date_empty_table(conn):
 
 
 def test_latest_date_with_row(conn):
-    conn.execute(
-        "INSERT INTO prices (date, symbol, close) VALUES ('2020-06-15', 'KC=F', 100.0)"
-    )
+    conn.execute("INSERT INTO prices (date, symbol, close) VALUES ('2020-06-15', 'KC=F', 100.0)")
     conn.commit()
     assert _latest_date(conn, "KC=F") == date(2020, 6, 15)
 
@@ -47,9 +47,7 @@ def test_ingest_inserts_rows(conn):
     provider = MagicMock()
     provider.fetch.return_value = _make_df("KC=F", ["2020-01-02", "2020-01-03"])
     ingest(conn, start_override=date(2020, 1, 1), tickers=["KC=F"], provider=provider)
-    count = conn.execute(
-        "SELECT COUNT(*) FROM prices WHERE symbol = 'KC=F'"
-    ).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM prices WHERE symbol = 'KC=F'").fetchone()[0]
     assert count == 2
 
 
@@ -62,9 +60,7 @@ def test_ingest_no_duplicates(conn):
     provider = MagicMock()
     provider.fetch.return_value = _make_df("KC=F", ["2020-01-02", "2020-01-03"])
     ingest(conn, start_override=date(2020, 1, 1), tickers=["KC=F"], provider=provider)
-    count = conn.execute(
-        "SELECT COUNT(*) FROM prices WHERE symbol = 'KC=F'"
-    ).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM prices WHERE symbol = 'KC=F'").fetchone()[0]
     assert count == 2  # duplicate was ignored, not doubled
 
 
@@ -79,9 +75,7 @@ def test_ingest_empty_df_skipped(conn):
 
 
 def test_ingest_increments_from_latest(conn):
-    conn.execute(
-        "INSERT INTO prices (date, symbol, close) VALUES ('2020-01-05', 'KC=F', 100.0)"
-    )
+    conn.execute("INSERT INTO prices (date, symbol, close) VALUES ('2020-01-05', 'KC=F', 100.0)")
     conn.commit()
     provider = MagicMock()
     provider.fetch.return_value = _make_df("KC=F", ["2020-01-06"])

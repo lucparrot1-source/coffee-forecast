@@ -20,9 +20,7 @@ _COLS = ["date", "symbol", "open", "high", "low", "close", "volume", "adj_close"
 
 
 def _latest_date(conn: sqlite3.Connection, symbol: str) -> date | None:
-    row = conn.execute(
-        "SELECT MAX(date) FROM prices WHERE symbol = ?", (symbol,)
-    ).fetchone()
+    row = conn.execute("SELECT MAX(date) FROM prices WHERE symbol = ?", (symbol,)).fetchone()
     return date.fromisoformat(row[0]) if row[0] else None
 
 
@@ -36,7 +34,7 @@ def ingest(
     _provider: PriceProvider = provider if provider is not None else make_default_provider()
     today = date.today()
 
-    # Use the earliest needed start date across all tickers so we hit Yahoo once.
+    # Use the earliest needed start date across all tickers for a single provider call.
     if start_override is not None:
         fetch_start = start_override
     else:
@@ -45,9 +43,7 @@ def ingest(
             fetch_start = DEFAULT_START
         else:
             # Earliest outstanding date — catches any ticker that lags behind.
-            fetch_start = min(
-                (d + timedelta(days=1) if d else DEFAULT_START) for d in dates
-            )
+            fetch_start = min((d + timedelta(days=1) if d else DEFAULT_START) for d in dates)
 
     if fetch_start > today:
         log.info("All tickers already up to date")
@@ -61,9 +57,7 @@ def ingest(
         return
 
     for sym, sym_df in df.groupby("symbol"):
-        records = (
-            sym_df.astype(object).where(pd.notna(sym_df), other=None)[_COLS].values.tolist()
-        )
+        records = sym_df.astype(object).where(pd.notna(sym_df), other=None)[_COLS].values.tolist()
         before = conn.total_changes
         conn.executemany(
             "INSERT OR IGNORE INTO prices"
@@ -78,8 +72,12 @@ def ingest(
 def main() -> None:
     configure_logging()
     parser = argparse.ArgumentParser(description="Ingest daily prices into SQLite")
-    parser.add_argument("--start", type=date.fromisoformat, default=None,
-                        help="Override fetch start date YYYY-MM-DD")
+    parser.add_argument(
+        "--start",
+        type=date.fromisoformat,
+        default=None,
+        help="Override fetch start date YYYY-MM-DD",
+    )
     parser.add_argument("--db", default=None, help="Path to SQLite DB (overrides COFFEE_DB_PATH)")
     args = parser.parse_args()
 

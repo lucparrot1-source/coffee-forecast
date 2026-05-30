@@ -3,7 +3,6 @@ import logging
 import os
 import sqlite3
 import traceback
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -18,7 +17,8 @@ log = logging.getLogger(__name__)
 
 def compute_spread(wide: pd.DataFrame) -> pd.Series:
     """Return log(KC=F) - log(RM=F) as a monthly Series."""
-    return np.log(wide["KC=F"]) - np.log(wide["RM=F"])
+    result: pd.Series = np.log(wide["KC=F"]) - np.log(wide["RM=F"])
+    return result
 
 
 def compute_zscore(s: pd.Series) -> pd.Series:
@@ -35,8 +35,9 @@ def fit_ar1(s: pd.Series) -> tuple[float, float]:
 
     half_life is nan when |rho| == 0 or |rho| >= 1 (non-stationary / explosive).
     """
-    y = s.values[1:]
-    x = s.values[:-1]
+    arr = np.asarray(s.values, dtype=float)
+    y = arr[1:]
+    x = arr[:-1]
     X = np.column_stack([np.ones_like(x), x])
     coefs, *_ = np.linalg.lstsq(X, y, rcond=None)
     rho = float(coefs[1])
@@ -47,9 +48,7 @@ def fit_ar1(s: pd.Series) -> tuple[float, float]:
     return rho, half_life
 
 
-def generate_signal(
-    z: pd.Series, entry: float = 2.0, exit_thresh: float = 0.5
-) -> pd.Series:
+def generate_signal(z: pd.Series, entry: float = 2.0, exit_thresh: float = 0.5) -> pd.Series:
     """Stateful trading signal from z-score series.
 
     +1 = long spread, -1 = short spread, 0 = flat.
@@ -86,10 +85,78 @@ def build_spread_df(wide: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(
         {
-            "date": spread.index.strftime("%Y-%m-%d"),
+            "date": pd.DatetimeIndex(spread.index).strftime("%Y-%m-%d"),
             "spread": spread.values,
             "z_score": z.values,
             "signal": sig.values.astype(int),
             "half_life": half_lives,
         }
     )
+
+
+def run_spread_model(conn: sqlite3.Connection) -> int:
+    """Load monthly prices from DB, compute spread signals, upsert into spread_signals.
+
+    Returns the number of rows written.
+    """
+    df = pd.read_sql(
+        "SELECT date, symbol, adj_close FROM prices_monthly"
+        " WHERE symbol IN ('KC=F', 'RM=F')"
+        " ORDER BY date",
+        conn,
+    )
+    if df.empty:
+        log.warning("No monthly price data found for KC=F / RM=F — skipping spread model")
+        return 0
+
+    wide = df.pivot(index="date", columns="symbol", values="adj_close")
+    wide.index = pd.to_datetime(wide.index)
+    wide = wide.dropna(subset=["KC=F", "RM=F"]).sort_index()
+
+    if wide.empty:
+        log.warning("No rows with both KC=F and RM=F present — skipping spread model")
+        return 0
+
+    result = build_spread_df(wide)
+
+    records = [
+        (
+            row["date"],
+            None if pd.isna(row["spread"]) else row["spread"],
+            None if pd.isna(row["z_score"]) else row["z_score"],
+            int(row["signal"]),
+            None if pd.isna(row["half_life"]) else row["half_life"],
+        )
+        for _, row in result.iterrows()
+    ]
+
+    conn.executemany(
+        "INSERT OR REPLACE INTO spread_signals (date, spread, z_score, signal, half_life)"
+        " VALUES (?, ?, ?, ?, ?)",
+        records,
+    )
+    conn.commit()
+    log.info("spread_signals: wrote %d rows", len(records))
+    return len(records)
+
+
+def main() -> None:
+    configure_logging()
+    parser = argparse.ArgumentParser(description="Fit spread model and write signals to DB")
+    parser.add_argument("--db", default=None, help="Path to SQLite DB (overrides COFFEE_DB_PATH)")
+    args = parser.parse_args()
+
+    if args.db:
+        os.environ["COFFEE_DB_PATH"] = args.db
+
+    conn = get_connection()
+    ensure_schema(conn)
+    run_spread_model(conn)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        send_pipeline_alert(__file__, traceback.format_exc())
+        raise

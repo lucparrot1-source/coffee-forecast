@@ -18,9 +18,7 @@ def conn(tmp_path, monkeypatch):
 def test_all_tables_created(conn):
     tables = {
         row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     }
     expected = {
         "prices",
@@ -34,9 +32,7 @@ def test_all_tables_created(conn):
 
 
 def test_prices_unique_constraint(conn):
-    conn.execute(
-        "INSERT INTO prices (date, symbol, close) VALUES ('2024-01-01', 'KC=F', 180.0)"
-    )
+    conn.execute("INSERT INTO prices (date, symbol, close) VALUES ('2024-01-01', 'KC=F', 180.0)")
     conn.commit()
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
