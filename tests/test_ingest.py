@@ -1,4 +1,7 @@
+import sqlite3
+from collections.abc import Generator
 from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -9,8 +12,10 @@ from coffee_forecast.db import get_connection
 from coffee_forecast.db.migrations import ensure_schema
 
 
-@pytest.fixture
-def conn(tmp_path, monkeypatch):
+@pytest.fixture  # type: ignore[misc]
+def conn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[sqlite3.Connection, None, None]:
     monkeypatch.setenv("COFFEE_DB_PATH", str(tmp_path / "test.db"))
     c = get_connection()
     ensure_schema(c)
@@ -33,17 +38,17 @@ def _make_df(symbol: str, dates: list[str]) -> pd.DataFrame:
     )
 
 
-def test_latest_date_empty_table(conn):
+def test_latest_date_empty_table(conn: sqlite3.Connection) -> None:
     assert _latest_date(conn, "KC=F") is None
 
 
-def test_latest_date_with_row(conn):
+def test_latest_date_with_row(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO prices (date, symbol, close) VALUES ('2020-06-15', 'KC=F', 100.0)")
     conn.commit()
     assert _latest_date(conn, "KC=F") == date(2020, 6, 15)
 
 
-def test_ingest_inserts_rows(conn):
+def test_ingest_inserts_rows(conn: sqlite3.Connection) -> None:
     provider = MagicMock()
     provider.fetch.return_value = _make_df("KC=F", ["2020-01-02", "2020-01-03"])
     ingest(conn, start_override=date(2020, 1, 1), tickers=["KC=F"], provider=provider)
@@ -51,7 +56,7 @@ def test_ingest_inserts_rows(conn):
     assert count == 2
 
 
-def test_ingest_no_duplicates(conn):
+def test_ingest_no_duplicates(conn: sqlite3.Connection) -> None:
     conn.execute(
         "INSERT INTO prices (date, symbol, close, adj_close)"
         " VALUES ('2020-01-02', 'KC=F', 100.0, 100.0)"
@@ -64,7 +69,7 @@ def test_ingest_no_duplicates(conn):
     assert count == 2  # duplicate was ignored, not doubled
 
 
-def test_ingest_empty_df_skipped(conn):
+def test_ingest_empty_df_skipped(conn: sqlite3.Connection) -> None:
     provider = MagicMock()
     provider.fetch.return_value = pd.DataFrame(
         columns=["date", "symbol", "open", "high", "low", "close", "volume", "adj_close"]
@@ -74,7 +79,7 @@ def test_ingest_empty_df_skipped(conn):
     assert count == 0
 
 
-def test_ingest_increments_from_latest(conn):
+def test_ingest_increments_from_latest(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO prices (date, symbol, close) VALUES ('2020-01-05', 'KC=F', 100.0)")
     conn.commit()
     provider = MagicMock()

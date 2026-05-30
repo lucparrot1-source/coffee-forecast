@@ -1,4 +1,7 @@
+import sqlite3
+from collections.abc import Generator
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -7,8 +10,10 @@ from coffee_forecast.db import get_connection
 from coffee_forecast.db.migrations import ensure_schema
 
 
-@pytest.fixture
-def conn(tmp_path, monkeypatch):
+@pytest.fixture  # type: ignore[misc]
+def conn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[sqlite3.Connection, None, None]:
     monkeypatch.setenv("COFFEE_DB_PATH", str(tmp_path / "test.db"))
     c = get_connection()
     ensure_schema(c)
@@ -16,14 +21,14 @@ def conn(tmp_path, monkeypatch):
     c.close()
 
 
-def _insert(conn, dt: str, symbol: str, adj_close: float) -> None:
+def _insert(conn: sqlite3.Connection, dt: str, symbol: str, adj_close: float) -> None:
     conn.execute(
         "INSERT INTO prices (date, symbol, adj_close) VALUES (?, ?, ?)",
         (dt, symbol, adj_close),
     )
 
 
-def test_resample_computes_mean(conn):
+def test_resample_computes_mean(conn: sqlite3.Connection) -> None:
     _insert(conn, "2020-01-02", "KC=F", 100.0)
     _insert(conn, "2020-01-15", "KC=F", 120.0)
     _insert(conn, "2020-01-30", "KC=F", 140.0)
@@ -36,7 +41,7 @@ def test_resample_computes_mean(conn):
     assert abs(row[0] - 120.0) < 1e-9  # mean(100, 120, 140) = 120
 
 
-def test_resample_excludes_current_month(conn):
+def test_resample_excludes_current_month(conn: sqlite3.Connection) -> None:
     _insert(conn, "2020-01-15", "KC=F", 100.0)
     conn.commit()
     resample(conn, as_of=date(2020, 1, 31))  # Jan 31 → January is still current
@@ -46,7 +51,7 @@ def test_resample_excludes_current_month(conn):
     assert row is None
 
 
-def test_resample_multiple_symbols(conn):
+def test_resample_multiple_symbols(conn: sqlite3.Connection) -> None:
     _insert(conn, "2020-01-02", "KC=F", 100.0)
     _insert(conn, "2020-01-02", "RM=F", 50.0)
     conn.commit()
@@ -61,7 +66,7 @@ def test_resample_multiple_symbols(conn):
     assert rm is not None and abs(rm[0] - 50.0) < 1e-9
 
 
-def test_resample_upsert_idempotent(conn):
+def test_resample_upsert_idempotent(conn: sqlite3.Connection) -> None:
     _insert(conn, "2020-01-02", "KC=F", 100.0)
     conn.commit()
     resample(conn, as_of=date(2020, 2, 1))
@@ -72,7 +77,7 @@ def test_resample_upsert_idempotent(conn):
     assert count == 1
 
 
-def test_resample_empty_table_no_error(conn):
+def test_resample_empty_table_no_error(conn: sqlite3.Connection) -> None:
     resample(conn, as_of=date(2020, 2, 1))  # no rows in prices — should not raise
     count = conn.execute("SELECT COUNT(*) FROM prices_monthly").fetchone()[0]
     assert count == 0

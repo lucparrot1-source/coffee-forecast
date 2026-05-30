@@ -79,7 +79,7 @@ class FREDProvider(PriceProvider):
             return pd.DataFrame(columns=_COLUMNS)
         return pd.concat(rows, ignore_index=True)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))  # type: ignore[misc]
     def _get(self, code: str, start: date, end: date) -> pd.DataFrame:
         return web.DataReader(code, "fred", start=start.isoformat(), end=end.isoformat())  # type: ignore[no-any-return]
 
@@ -137,7 +137,7 @@ class AlphaVantageProvider(PriceProvider):
             return pd.DataFrame(columns=_COLUMNS)
         return pd.concat(rows, ignore_index=True)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=30))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=30))  # type: ignore[misc]
     def _get_monthly(self, from_sym: str, to_sym: str) -> pd.DataFrame:
         resp = requests.get(
             self._BASE_URL,
@@ -157,7 +157,7 @@ class AlphaVantageProvider(PriceProvider):
         ts = data["Time Series FX (Monthly)"]
         df = pd.DataFrame.from_dict(ts, orient="index")
         df.index = pd.to_datetime(df.index)
-        df.columns = [c.split(". ")[1] for c in df.columns]  # "1. open" → "open"
+        df.columns = pd.Index([c.split(". ")[1] for c in df.columns])  # "1. open" → "open"
         return df.astype(float).sort_index()
 
     def _normalise(self, raw: pd.DataFrame, sym: str, start: date, end: date) -> pd.DataFrame:

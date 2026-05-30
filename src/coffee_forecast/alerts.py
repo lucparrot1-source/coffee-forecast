@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 _ALERT_TO = "lucparrot1@gmail.com"
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))  # type: ignore[misc]
 def _post_alert(api_key: str, script_name: str, error_text: str) -> None:
     requests.post(
         "https://api.resend.com/emails",

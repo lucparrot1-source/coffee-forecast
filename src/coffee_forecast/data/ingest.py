@@ -57,7 +57,7 @@ def ingest(
         return
 
     for sym, sym_df in df.groupby("symbol"):
-        records = sym_df.astype(object).where(pd.notna(sym_df), other=None)[_COLS].values.tolist()
+        records = sym_df.astype(object).where(pd.notna(sym_df), other=None)[_COLS].values.tolist()  # type: ignore[arg-type]
         before = conn.total_changes
         conn.executemany(
             "INSERT OR IGNORE INTO prices"
