@@ -239,6 +239,7 @@ def main() -> None:
             (model_type,),
         ).fetchone()
         if row is None:
+            # Raise so the __main__ guard fires the Resend alert and exits non-zero.
             raise RuntimeError(
                 f"No successful {model_type} run found — run that model first"
             )
