@@ -90,3 +90,26 @@ def extract_residuals(result: VECMResults, endog: pd.DataFrame) -> pd.DataFrame:
                 "residual": float(result.resid[i, j]),
             })
     return pd.DataFrame(rows)
+
+
+def generate_forecasts(
+    result: VECMResults, endog_cols: list[str], n_exog: int, steps: int = 3
+) -> pd.DataFrame:
+    """Produce point forecasts at horizons 1..steps.
+
+    Naïve exog assumption: Δexog = 0 for all forecast steps (exchange rates unchanged).
+    Forecasts are on log scale; point_forecast = exp(log_forecast).
+    """
+    exog_fc = np.zeros((steps, n_exog))
+    fc = result.predict(steps=steps, exog_fc=exog_fc)  # shape (steps, n_endog)
+    rows = []
+    for h in range(steps):
+        for j, sym in enumerate(endog_cols):
+            log_fc = float(fc[h, j])
+            rows.append({
+                "horizon": h + 1,
+                "symbol": sym,
+                "log_forecast": log_fc,
+                "point_forecast": float(np.exp(log_fc)),
+            })
+    return pd.DataFrame(rows)
