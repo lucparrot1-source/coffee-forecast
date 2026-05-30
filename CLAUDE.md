@@ -74,7 +74,12 @@ See the full plan in conversation history of the initial planning session, or re
   - **Key decision for Step 5:** model as 2-variable VECM [KC=F, RM=F] with BRL, VND, IDR, DXY as exogenous inputs — Johansen finds no cointegration in the 4-variable system, so FX stays exogenous
   - Note: new deps — `matplotlib==3.10.9`, `hmmlearn==0.3.3`, `jupyterlab==4.5.7`, `pandas-datareader==0.10.0` (yfinance and nasdaq-data-link removed)
   - Note: notebook TICKERS use `["KC=F", "RM=F", "BRL=X", "DX-Y.NYB"]`; VND=X and IDR=X data now in DB — can be added to notebook in a future pass
-- [ ] **Step 4 — Spread model** (Arabica–Robusta cointegration, OU fit, z-score, signal)
+- [x] **Step 4 — Spread model** (Arabica–Robusta cointegration, OU fit, z-score, signal)
+  - [x] `compute_spread`, `compute_zscore`, `fit_ar1`, `generate_signal`, `build_spread_df`
+  - [x] `run_spread_model` — reads `prices_monthly`, upserts into `spread_signals` (INSERT OR REPLACE, idempotent)
+  - [x] `main()` + `__main__` guard with Resend alert wrapper
+  - [x] 20 unit + integration tests; smoke test confirmed 315 rows on live DB
+  - Note: entry `|z| > 2.0`, exit `|z| < 0.5`, expanding-window z-score
 - [ ] **Step 5 — VECM model** (lag/rank selection, point forecasts, tests)
 - [ ] **Step 6 — R/GAMLSS subprocess bridge** (BCT fit on VECM residuals)
 - [ ] **Step 7 — Hybrid combiner** (sequential mean + distribution)
