@@ -114,9 +114,9 @@ See the full plan in conversation history of the initial planning session, or re
   - Note: Forecasts stored with full quantile band (p10/p25/p50/p75/p90 on price scale)
   - Note: Each monthly run creates a new `model_runs` entry (model_type='hybrid'). Downstream queries for the current forecast use: `WHERE run_id = (SELECT id FROM model_runs WHERE model_type='hybrid' AND status='success' ORDER BY id DESC LIMIT 1)`
   - Note: `p50 ≠ point_forecast` by design — `p50 = point_forecast × exp(gamlss_q50)`. Use `p50` for median coverage calculations in backtest, not `point_forecast`.
-  - Note: NaN quantiles (GAMLSS convergence failures) are warned and written as-is. Steps 8/9 must handle NaN rows explicitly (filter before metrics/display).
+  - Note: NaN quantiles (GAMLSS convergence failures) are warned and written as-is. Steps 8/9 must handle NaN rows explicitly (filter before metrics/display). Tested — does not crash, warning fires, NaN written as NULL.
   - Note: `backtest_results` schema updated this session — now includes `p25` and `p75` columns (previously only had p10/p50/p90). Ready for 50% interval coverage metrics in Step 8.
-  - Note: `gamlss.py` main() has a known bug — `log.error + return` on missing VECM run exits with code 0 (silent failure). Fix is tracked as a side task (spawned chip).
+  - Note: `gamlss.py` main() fixed — now raises `RuntimeError` on missing VECM run (was silently exiting 0).
 - [ ] **Step 8 — Backtest engine** (walk-forward expanding window, metrics, benchmarks)
   - Note: **Key calibration check** — GAMLSS was fit on in-sample VECM residuals, which are smaller than true out-of-sample errors. Prediction intervals are therefore expected to be too narrow. The backtest must measure empirical coverage: if 80% of actual prices fall inside the p10–p90 band, we're calibrated; if consistently less (e.g. 55–60%), intervals need inflating. Track this explicitly as a metric in `accuracy_log`.
   - Note: `backtest_results` table has columns p10, p25, p50, p75, p90 — all five quantiles available for 80% and 50% coverage metrics.
