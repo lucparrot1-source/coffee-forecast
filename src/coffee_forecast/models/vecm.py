@@ -93,14 +93,19 @@ def extract_residuals(result: VECMResults, endog: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_forecasts(
-    result: VECMResults, endog_cols: list[str], n_exog: int, steps: int = 3
+    result: VECMResults,
+    endog_cols: list[str],
+    exog_last_row: "np.ndarray[object, np.dtype[np.float64]]",
+    steps: int = 3,
 ) -> pd.DataFrame:
     """Produce point forecasts at horizons 1..steps.
 
-    Naïve exog assumption: Δexog = 0 for all forecast steps (exchange rates unchanged).
+    Naïve exog assumption: exchange rates stay at their last observed level for all
+    forecast steps. statsmodels VECM takes exog levels (not changes), so we tile the
+    last observed row. Passing zeros here would imply rates collapse to zero.
     Forecasts are on log scale; point_forecast = exp(log_forecast).
     """
-    exog_fc = np.zeros((steps, n_exog))
+    exog_fc = np.tile(exog_last_row, (steps, 1))
     fc = result.predict(steps=steps, exog_fc=exog_fc)  # shape (steps, n_endog)
     rows = []
     for h in range(steps):
@@ -191,7 +196,7 @@ def run_vecm_model(conn: sqlite3.Connection) -> int:
     log.info("VECM fitted: llf=%.4f, n_obs=%d", result.llf, len(endog))
 
     residuals_df = extract_residuals(result, endog)
-    forecasts_df = generate_forecasts(result, endog.columns.tolist(), exog.shape[1])
+    forecasts_df = generate_forecasts(result, endog.columns.tolist(), exog.values[-1])
 
     train_start = endog.index[0].strftime("%Y-%m-%d")
     train_end = endog.index[-1].strftime("%Y-%m-%d")

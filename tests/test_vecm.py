@@ -128,7 +128,7 @@ def test_extract_residuals_shape_and_columns() -> None:
 def test_generate_forecasts_horizons() -> None:
     endog, exog = _make_cointegrated(n=80)
     result = fit_vecm(endog, exog, lag_order=2)
-    df = generate_forecasts(result, endog.columns.tolist(), exog.shape[1])
+    df = generate_forecasts(result, endog.columns.tolist(), exog.values[-1])
     assert len(df) == 6  # 3 horizons × 2 symbols
     assert set(df["horizon"].unique()) == {1, 2, 3}
     assert set(df["symbol"].unique()) == {"KC=F", "RM=F"}
@@ -137,7 +137,7 @@ def test_generate_forecasts_horizons() -> None:
 def test_generate_forecasts_back_transform() -> None:
     endog, exog = _make_cointegrated(n=80)
     result = fit_vecm(endog, exog, lag_order=2)
-    df = generate_forecasts(result, endog.columns.tolist(), exog.shape[1])
+    df = generate_forecasts(result, endog.columns.tolist(), exog.values[-1])
     for _, row in df.iterrows():
         assert abs(np.exp(row["log_forecast"]) - row["point_forecast"]) < 1e-10
 
