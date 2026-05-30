@@ -204,3 +204,56 @@ def run_hybrid_model(
         run_id, regime, len(combined_df),
     )
     return run_id
+
+
+def main() -> None:
+    configure_logging()
+    parser = argparse.ArgumentParser(
+        description="Combine VECM point forecasts with GAMLSS distributions"
+    )
+    parser.add_argument("--db", default=None, help="Path to SQLite DB (overrides COFFEE_DB_PATH)")
+    parser.add_argument(
+        "--vecm-run-id",
+        type=int,
+        default=None,
+        help="VECM model_runs.id to use (default: latest successful VECM run)",
+    )
+    parser.add_argument(
+        "--gamlss-run-id",
+        type=int,
+        default=None,
+        help="GAMLSS model_runs.id to use (default: latest successful GAMLSS run)",
+    )
+    args = parser.parse_args()
+
+    if args.db:
+        os.environ["COFFEE_DB_PATH"] = args.db
+
+    conn = get_connection()
+    ensure_schema(conn)
+
+    def _latest_run(model_type: str) -> int:
+        row = conn.execute(
+            "SELECT id FROM model_runs WHERE model_type = ? AND status = 'success'"
+            " ORDER BY id DESC LIMIT 1",
+            (model_type,),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError(
+                f"No successful {model_type} run found — run that model first"
+            )
+        return int(row[0])
+
+    vecm_run_id = args.vecm_run_id if args.vecm_run_id is not None else _latest_run("vecm")
+    gamlss_run_id = args.gamlss_run_id if args.gamlss_run_id is not None else _latest_run("gamlss")
+
+    log.info("Using vecm_run_id=%d, gamlss_run_id=%d", vecm_run_id, gamlss_run_id)
+    run_hybrid_model(conn, vecm_run_id, gamlss_run_id)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        send_pipeline_alert(__file__, traceback.format_exc())
+        raise
