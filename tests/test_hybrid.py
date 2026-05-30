@@ -328,3 +328,14 @@ def test_run_hybrid_model_returns_minus_one_when_no_gamlss_params(
     _seed_kc_prices(mem_conn)
     result = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
     assert result == -1
+
+
+def test_run_hybrid_model_returns_minus_one_for_unknown_vecm_run_id(
+    mem_conn: sqlite3.Connection,
+) -> None:
+    _, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_gamlss_params(mem_conn, gamlss_run_id)
+    _seed_kc_prices(mem_conn)
+    # vecm_run_id=999 has no model_runs entry and no forecasts
+    result = run_hybrid_model(mem_conn, vecm_run_id=999, gamlss_run_id=gamlss_run_id)
+    assert result == -1

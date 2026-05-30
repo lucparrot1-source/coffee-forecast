@@ -163,7 +163,10 @@ def run_hybrid_model(
     run_meta = conn.execute(
         "SELECT train_end FROM model_runs WHERE id = ?", (vecm_run_id,)
     ).fetchone()
-    forecast_date = run_meta[0] if run_meta else ""
+    if run_meta is None:
+        log.error("VECM run_id=%d not found in model_runs — cannot proceed", vecm_run_id)
+        return -1
+    forecast_date = run_meta[0]
 
     cur = conn.execute(
         "INSERT INTO model_runs"
@@ -180,13 +183,22 @@ def run_hybrid_model(
                 "regime": regime,
             }),
             "{}",
-            "success",
+            "pending",
         ),
     )
     conn.commit()
-    run_id = int(cur.lastrowid)  # type: ignore[arg-type]
+    assert cur.lastrowid is not None
+    run_id = int(cur.lastrowid)
 
-    write_hybrid_forecasts(conn, run_id, combined_df, forecast_date)
+    try:
+        write_hybrid_forecasts(conn, run_id, combined_df, forecast_date)
+    except Exception:
+        conn.execute("UPDATE model_runs SET status = 'failed' WHERE id = ?", (run_id,))
+        conn.commit()
+        raise
+
+    conn.execute("UPDATE model_runs SET status = 'success' WHERE id = ?", (run_id,))
+    conn.commit()
     log.info(
         "Hybrid run complete: run_id=%d, regime=%s, rows=%d",
         run_id, regime, len(combined_df),
