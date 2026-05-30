@@ -25,18 +25,22 @@ ENDOG_SYMBOLS = ["KC=F", "RM=F"]
 EXOG_SYMBOLS = ["BRL=X", "VND=X", "IDR=X", "DX-Y.NYB"]
 
 
-def load_aligned_data(conn: sqlite3.Connection) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_aligned_data(
+    conn: sqlite3.Connection, max_date: str | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load prices_monthly, inner-join on common dates, log-transform.
 
     Returns (endog_df, exog_df) both on log scale, or (empty, empty) if no data.
     """
     all_symbols = ENDOG_SYMBOLS + EXOG_SYMBOLS
+    date_filter = " AND date <= ?" if max_date is not None else ""
+    extra_param: tuple[str, ...] = (max_date,) if max_date is not None else ()
     df = pd.read_sql(
         "SELECT date, symbol, adj_close FROM prices_monthly"
-        f" WHERE symbol IN ({','.join('?' * len(all_symbols))})"
+        f" WHERE symbol IN ({','.join('?' * len(all_symbols))}){date_filter}"
         " ORDER BY date",
         conn,
-        params=tuple(all_symbols),
+        params=tuple(all_symbols) + extra_param,
     )
     if df.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -179,12 +183,12 @@ def write_residuals(conn: sqlite3.Connection, run_id: int, residuals_df: pd.Data
     conn.commit()
 
 
-def run_vecm_model(conn: sqlite3.Connection) -> int:
+def run_vecm_model(conn: sqlite3.Connection, max_date: str | None = None) -> int:
     """Orchestrate load → lag-select → fit → residuals → forecasts → write DB.
 
     Returns the model_runs.id of the completed run, or -1 if no data found.
     """
-    endog, exog = load_aligned_data(conn)
+    endog, exog = load_aligned_data(conn, max_date=max_date)
     if endog.empty:
         log.warning("No aligned monthly data found for all 6 symbols — skipping VECM")
         return -1

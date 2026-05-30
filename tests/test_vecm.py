@@ -215,3 +215,41 @@ def test_run_vecm_model_smoke(mem_conn: sqlite3.Connection) -> None:
 def test_run_vecm_model_empty_db_returns_minus_one(mem_conn: sqlite3.Connection) -> None:
     result = run_vecm_model(mem_conn)
     assert result == -1
+
+
+def test_load_aligned_data_max_date_excludes_later_rows(mem_conn: sqlite3.Connection) -> None:
+    """load_aligned_data with max_date must not include prices after that date."""
+    symbols = ["KC=F", "RM=F", "BRL=X", "VND=X", "IDR=X", "DX-Y.NYB"]
+    dates_all = pd.date_range("2018-01-01", periods=48, freq="MS")
+    rng = np.random.default_rng(0)
+    for sym in symbols:
+        prices = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.03, 48)))
+        mem_conn.executemany(
+            "INSERT OR IGNORE INTO prices_monthly (date, symbol, adj_close) VALUES (?, ?, ?)",
+            [(d.strftime("%Y-%m-%d"), sym, float(p)) for d, p in zip(dates_all, prices)],
+        )
+    mem_conn.commit()
+
+    endog, exog = load_aligned_data(mem_conn, max_date="2019-12-01")
+
+    assert not endog.empty
+    assert endog.index.max() <= pd.Timestamp("2019-12-01")
+    assert exog.index.max() <= pd.Timestamp("2019-12-01")
+
+
+def test_load_aligned_data_max_date_none_loads_all(mem_conn: sqlite3.Connection) -> None:
+    symbols = ["KC=F", "RM=F", "BRL=X", "VND=X", "IDR=X", "DX-Y.NYB"]
+    dates_all = pd.date_range("2018-01-01", periods=48, freq="MS")
+    rng = np.random.default_rng(1)
+    for sym in symbols:
+        prices = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.03, 48)))
+        mem_conn.executemany(
+            "INSERT OR IGNORE INTO prices_monthly (date, symbol, adj_close) VALUES (?, ?, ?)",
+            [(d.strftime("%Y-%m-%d"), sym, float(p)) for d, p in zip(dates_all, prices)],
+        )
+    mem_conn.commit()
+
+    endog_all, _ = load_aligned_data(mem_conn, max_date=None)
+    endog_cut, _ = load_aligned_data(mem_conn, max_date="2019-12-01")
+
+    assert len(endog_all) > len(endog_cut)
