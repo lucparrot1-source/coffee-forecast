@@ -6,6 +6,7 @@ import pytest
 
 from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.models.vecm import (
+    extract_residuals,
     fit_vecm,
     load_aligned_data,
     select_lag_order,
@@ -106,3 +107,14 @@ def test_fit_vecm_returns_result_with_resid_and_llf() -> None:
     assert hasattr(result, "predict")
     assert hasattr(result, "llf")
     assert result.resid.shape[1] == 2  # one residual column per endogenous variable
+
+
+def test_extract_residuals_shape_and_columns() -> None:
+    endog, exog = _make_cointegrated(n=80)
+    result = fit_vecm(endog, exog, lag_order=2)
+    df = extract_residuals(result, endog)
+    assert set(df.columns) == {"date", "symbol", "residual"}
+    assert set(df["symbol"].unique()) == {"KC=F", "RM=F"}
+    assert df["residual"].notna().all()
+    # Each date has 2 rows (one per endogenous symbol)
+    assert len(df) == result.resid.shape[0] * 2

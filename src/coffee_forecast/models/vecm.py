@@ -71,3 +71,22 @@ def fit_vecm(endog: pd.DataFrame, exog: pd.DataFrame, lag_order: int) -> VECMRes
         deterministic="co",
     )
     return model.fit()
+
+
+def extract_residuals(result: VECMResults, endog: pd.DataFrame) -> pd.DataFrame:
+    """Return long-format DataFrame of in-sample residuals (log scale).
+
+    VECM residuals have fewer rows than endog: the first k_ar_diff rows are consumed
+    by lagged differences. Dates are aligned from the tail of endog.index.
+    """
+    n_resid = result.resid.shape[0]
+    dates = endog.index[-n_resid:]
+    rows = []
+    for i, dt in enumerate(dates):
+        for j, sym in enumerate(ENDOG_SYMBOLS):
+            rows.append({
+                "date": dt.strftime("%Y-%m-%d"),
+                "symbol": sym,
+                "residual": float(result.resid[i, j]),
+            })
+    return pd.DataFrame(rows)
