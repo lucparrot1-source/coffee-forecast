@@ -249,7 +249,9 @@ def main() -> None:
     gamlss_run_id = args.gamlss_run_id if args.gamlss_run_id is not None else _latest_run("gamlss")
 
     log.info("Using vecm_run_id=%d, gamlss_run_id=%d", vecm_run_id, gamlss_run_id)
-    run_hybrid_model(conn, vecm_run_id, gamlss_run_id)
+    result = run_hybrid_model(conn, vecm_run_id, gamlss_run_id)
+    if result == -1:
+        raise RuntimeError("Hybrid model skipped — check that VECM and GAMLSS ran successfully")
 
 
 if __name__ == "__main__":
