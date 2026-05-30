@@ -45,3 +45,9 @@ def load_aligned_data(conn: sqlite3.Connection) -> tuple[pd.DataFrame, pd.DataFr
     endog_out = log_wide[ENDOG_SYMBOLS]
     exog_out = log_wide[EXOG_SYMBOLS]
     return endog_out, exog_out
+
+
+def select_lag_order(endog: pd.DataFrame, exog: pd.DataFrame, maxlags: int = 12) -> int:
+    """Return AIC-optimal VAR lag order (minimum 1) for VECM pre-selection."""
+    res = select_order(endog.values, maxlags=maxlags, deterministic="co", exog=exog.values)
+    return max(1, int(res.aic))

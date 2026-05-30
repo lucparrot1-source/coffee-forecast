@@ -7,6 +7,7 @@ import pytest
 from coffee_forecast.db.migrations import ensure_schema
 from coffee_forecast.models.vecm import (
     load_aligned_data,
+    select_lag_order,
 )
 
 
@@ -88,3 +89,10 @@ def test_load_aligned_data_empty_db(mem_conn: sqlite3.Connection) -> None:
     endog_out, exog_out = load_aligned_data(mem_conn)
     assert endog_out.empty
     assert exog_out.empty
+
+
+def test_select_lag_order_returns_int_in_range() -> None:
+    endog, exog = _make_cointegrated(n=80)
+    lag = select_lag_order(endog, exog, maxlags=6)
+    assert isinstance(lag, int)
+    assert 1 <= lag <= 6
