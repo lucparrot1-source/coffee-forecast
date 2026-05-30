@@ -339,3 +339,69 @@ def test_run_hybrid_model_returns_minus_one_for_unknown_vecm_run_id(
     # vecm_run_id=999 has no model_runs entry and no forecasts
     result = run_hybrid_model(mem_conn, vecm_run_id=999, gamlss_run_id=gamlss_run_id)
     assert result == -1
+
+
+# --- NaN quantile passthrough ---
+
+
+def test_run_hybrid_model_warns_and_writes_nan_quantiles(
+    mem_conn: sqlite3.Connection,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """NaN GAMLSS quantiles (convergence failure) must not crash the pipeline.
+
+    They should be written to the forecasts table as NULL and a warning logged.
+    Steps 8 and 9 are responsible for filtering NaN rows before computing metrics.
+    """
+    import logging
+
+    vecm_run_id, gamlss_run_id = _seed_model_runs(mem_conn)
+    _seed_vecm_forecasts(mem_conn, vecm_run_id)
+
+    # Seed GAMLSS params with NaN quantiles for KC=F (simulates convergence failure)
+    mem_conn.executemany(
+        "INSERT INTO gamlss_params"
+        " (run_id, symbol, regime, mu, sigma, nu, tau, q10, q25, q50, q75, q90, n_obs)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (gamlss_run_id, "KC=F", "Low",  None, None, None, None, None, None, None, None, None, 5),
+            (gamlss_run_id, "RM=F", "Low",  0.00, 0.06, -0.1, 2.0, -0.08, -0.04, 0.00, 0.04, 0.08, 45),
+            (gamlss_run_id, "KC=F", "Medium", None, None, None, None, None, None, None, None, None, 3),
+            (gamlss_run_id, "RM=F", "Medium", 0.00, 0.09, -0.05, 1.8, -0.12, -0.06, 0.00, 0.06, 0.12, 42),
+            (gamlss_run_id, "KC=F", "High", None, None, None, None, None, None, None, None, None, 2),
+            (gamlss_run_id, "RM=F", "High", 0.00, 0.13, -0.02, 1.5, -0.16, -0.09, 0.00, 0.09, 0.16, 30),
+        ],
+    )
+    mem_conn.commit()
+    _seed_kc_prices(mem_conn)
+
+    with caplog.at_level(logging.WARNING, logger="coffee_forecast.models.hybrid"):
+        run_id = run_hybrid_model(mem_conn, vecm_run_id, gamlss_run_id)
+
+    # Must not crash — returns a valid run_id
+    assert run_id > 0
+
+    # Warning must mention NaN quantile values
+    assert any("NaN quantile" in r.message for r in caplog.records), (
+        f"Expected NaN quantile warning. Got: {[r.message for r in caplog.records]}"
+    )
+
+    # NaN rows written to DB (NULL in SQLite)
+    kc_row = mem_conn.execute(
+        "SELECT p10, p50, p90 FROM forecasts WHERE run_id = ? AND symbol = 'KC=F' AND horizon = 1",
+        (run_id,),
+    ).fetchone()
+    assert kc_row is not None
+    assert kc_row[0] is None, "p10 should be NULL for NaN KC=F quantile"
+    assert kc_row[1] is None, "p50 should be NULL for NaN KC=F quantile"
+    assert kc_row[2] is None, "p90 should be NULL for NaN KC=F quantile"
+
+    # RM=F rows must be clean (non-NaN)
+    rm_row = mem_conn.execute(
+        "SELECT p10, p50, p90 FROM forecasts WHERE run_id = ? AND symbol = 'RM=F' AND horizon = 1",
+        (run_id,),
+    ).fetchone()
+    assert rm_row is not None
+    assert rm_row[0] is not None, "p10 should be non-NULL for RM=F"
+    assert rm_row[1] is not None, "p50 should be non-NULL for RM=F"
+    assert rm_row[2] is not None, "p90 should be non-NULL for RM=F"
