@@ -22,17 +22,17 @@ st.html("""
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; }
-.stApp { background: #FBF7F2 !important; }
-header[data-testid="stHeader"] { background: #FBF7F2 !important; border-bottom: 1px solid #DDD0C0; }
+.stApp { background: #FFFFFF !important; }
+header[data-testid="stHeader"] { background: #FFFFFF !important; border-bottom: 1px solid #DDD0C0; }
 
 /* Sidebar */
-[data-testid="stSidebar"] { background: #F5EDE0 !important; border-right: 1px solid #DDD0C0 !important; }
+[data-testid="stSidebar"] { background: #F7F3EE !important; border-right: 1px solid #DDD0C0 !important; }
 [data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span { color: #8C6E52 !important; font-size: 0.82rem !important; }
+[data-testid="stSidebar"] span { color: #1A1A1A !important; font-size: 0.82rem !important; }
 [data-testid="stSidebar"] strong { color: #B05C1A !important; }
 [data-testid="stSidebarContent"] h3 {
     font-family: 'Lora', Georgia, serif !important;
-    color: #2C1A0E !important; font-size: 1.1rem !important; font-weight: 600 !important;
+    color: #1A1A1A !important; font-size: 1.1rem !important; font-weight: 600 !important;
     border-bottom: 1px solid #DDD0C0; padding-bottom: 10px; margin-bottom: 10px !important;
 }
 
@@ -90,14 +90,14 @@ div[data-baseweb="tab-border"] { display: none !important; }
 div[data-baseweb="tab-panel"] { padding-top: 28px !important; }
 
 /* Headings */
-h1, h2 { font-family: 'Lora', Georgia, serif !important; color: #2C1A0E !important; font-weight: 600 !important; }
+h1, h2 { font-family: 'Lora', Georgia, serif !important; color: #1A1A1A !important; font-weight: 600 !important; }
 h2 { font-size: 1.8rem !important; margin-bottom: 2px !important; }
 h3 {
     font-family: 'Inter', sans-serif !important; font-size: 0.72rem !important;
-    font-weight: 600 !important; letter-spacing: 0.1em !important;
-    text-transform: uppercase !important; color: #8C6E52 !important; margin-bottom: 12px !important;
+    font-weight: 700 !important; letter-spacing: 0.1em !important;
+    text-transform: uppercase !important; color: #1A1A1A !important; margin-bottom: 12px !important;
 }
-p { color: #4A2C1A; line-height: 1.65; }
+p { color: #1A1A1A; line-height: 1.65; }
 
 /* Metric cards */
 [data-testid="stMetric"] {
@@ -106,7 +106,7 @@ p { color: #4A2C1A; line-height: 1.65; }
 [data-testid="stMetricLabel"] p {
     font-family: 'Inter', sans-serif !important; font-size: 0.70rem !important;
     letter-spacing: 0.09em !important; text-transform: uppercase !important;
-    color: #8C6E52 !important; font-weight: 600 !important;
+    color: #1A1A1A !important; font-weight: 700 !important;
 }
 [data-testid="stMetricValue"] {
     font-family: 'IBM Plex Mono', monospace !important; font-size: 1.75rem !important;
@@ -116,7 +116,7 @@ p { color: #4A2C1A; line-height: 1.65; }
 
 /* Misc */
 hr { border-color: #DDD0C0 !important; margin: 20px 0 !important; }
-[data-testid="stCaptionContainer"] p { color: #8C6E52 !important; font-size: 0.77rem !important; }
+[data-testid="stCaptionContainer"] p { color: #3D3D3D !important; font-size: 0.77rem !important; }
 [data-testid="stAlert"] {
     background: #F0E8DC !important; border: 1px solid #DDD0C0 !important;
     border-radius: 8px !important;
@@ -125,7 +125,7 @@ hr { border-color: #DDD0C0 !important; margin: 20px 0 !important; }
 [data-testid="stExpander"] details {
     background: #F5EDE0 !important; border: 1px solid #DDD0C0 !important; border-radius: 8px !important;
 }
-[data-testid="stExpander"] summary { color: #8C6E52 !important; font-size: 0.82rem !important; }
+[data-testid="stExpander"] summary { color: #1A1A1A !important; font-size: 0.82rem !important; }
 
 /* Badges */
 .badge {
@@ -163,7 +163,7 @@ hr { border-color: #DDD0C0 !important; margin: 20px 0 !important; }
 _BG     = "#FBF7F2"
 _SURF   = "#FFFFFF"
 _GRID   = "#EEE5D8"
-_TXT    = "#8C6E52"
+_TXT    = "#3D2B1A"
 _ACCENT = "#B05C1A"
 _DARK   = "#2C1A0E"
 _HIST   = "#C4A882"
@@ -181,9 +181,9 @@ def _base_layout(height: int = 360, title: str | None = None) -> dict:
         font=dict(family="Inter, sans-serif", color=_TXT, size=11),
         margin=dict(l=0, r=0, t=36 if title else 8, b=0),
         xaxis=dict(showgrid=False, zeroline=False, linecolor=_GRID,
-                   tickfont=dict(family=_MONO, size=10, color=_TXT)),
+                   tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
         yaxis=dict(showgrid=True, gridcolor=_GRID, zeroline=False, linecolor=_GRID,
-                   tickfont=dict(family=_MONO, size=10, color=_TXT)),
+                   tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11, color=_TXT),
                     orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     )
@@ -456,6 +456,7 @@ with tab1:
             band_y = [anchor_val] + p90_clean + list(reversed(p10_clean)) + [anchor_val]
             fig.add_trace(go.Scatter(
                 x=band_x, y=band_y,
+                mode="lines",
                 fill="toself", fillcolor="rgba(176,92,26,0.18)",
                 line=dict(width=0), name="80% interval", hoverinfo="skip",
             ))
@@ -478,12 +479,28 @@ with tab1:
         if not price_hist.empty:
             today_str = price_hist["date"].iloc[-1].strftime("%Y-%m-%d")
             fig.add_vline(x=today_str, line_dash="dot", line_color=_HIST, line_width=1)
-            fig.add_annotation(x=today_str, yref="paper", y=1.0,
-                               text="LAST DATA", showarrow=False, yshift=6,
-                               font=dict(family=_MONO, size=9, color=_TXT))
 
-        layout1 = _base_layout(380, "Arabica Coffee Futures — 3-Month Price Forecast (KC=F)")
+        # "FORECAST PERIOD →" label with an arrow spanning the forecast region
+        if fc_dates_list:
+            fig.add_annotation(
+                x=fc_dates_list[-1], y=1.0, yref="paper",
+                ax=fc_dates_list[0], ay=1.0, ayref="paper",
+                text="FORECAST PERIOD",
+                showarrow=True, arrowhead=2, arrowwidth=1.2,
+                arrowcolor=_TXT, arrowside="end",
+                font=dict(family=_MONO, size=9, color=_TXT),
+                xanchor="right", yshift=10, axref="x",
+                bgcolor="rgba(255,255,255,0.7)", borderpad=3,
+            )
+
+        layout1 = _base_layout(400, "Arabica Coffee Futures — 3-Month Price Forecast (KC=F)")
         layout1["yaxis"]["title"] = dict(text="USD / lb", font=dict(family=_MONO, size=10, color=_TXT))
+        layout1["margin"]["b"] = 48
+        layout1["legend"] = dict(
+            bgcolor="rgba(255,255,255,0.88)", bordercolor=_GRID, borderwidth=1,
+            font=dict(size=10, color=_TXT, family="Inter, sans-serif"),
+            orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0,
+        )
         fig.update_layout(**layout1)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -522,54 +539,82 @@ with tab2:
     if bt.empty:
         _no_data("No backtest results yet. Run the backtest pipeline first.")
     else:
+        _mae_help = (
+            "Mean Absolute Error — the average dollar distance between the forecast "
+            "and the actual price across all backtest windows. Lower is better."
+        )
         # Summary metrics
         m1, m2, m3, m4 = st.columns(4)
         for col, h, label in [(m1, 1, "MAE h=1"), (m2, 2, "MAE h=2"), (m3, 3, "MAE h=3")]:
             sub = bt[bt["horizon"] == h]
-            # Use p50 where available (canonical display value); fall back to point_forecast
             forecast_col = sub["p50"] if "p50" in sub.columns and sub["p50"].notna().any() else sub["point_forecast"]
             err = (sub["actual"] - forecast_col).abs()
-            col.metric(label, f"${err.mean():.3f}" if not err.empty else "—")
+            col.metric(label, f"${err.mean():.3f}" if not err.empty else "—", help=_mae_help)
         acc_all = load_accuracy_log("KC=F")
         cov_vals = acc_all["coverage_80"].dropna() if not acc_all.empty else pd.Series([], dtype=float)
         cov_str = f"{cov_vals.mean() * 100:.0f}%" if not cov_vals.empty else "—"
         target_delta = f"{(cov_vals.mean() - 0.80) * 100:+.0f}pp vs 80% target" if not cov_vals.empty else ""
         m4.metric("80% Coverage", cov_str, target_delta,
-                  help="Target is 80%. Under-coverage means intervals are slightly too tight.")
+                  help=(
+                      "Of all the backtest forecasts, what share of actual prices landed inside "
+                      "the shaded band (p10–p90)? A well-calibrated model hits 80%. "
+                      "Below 80% means the bands are too narrow — the model is overconfident."
+                  ))
 
         st.html("<br>")
 
-        # Actuals vs h=1 forecasts with error bars
+        def _chart_layout(height: int, title: str, ytitle: str) -> dict:
+            lay = _base_layout(height, title)
+            lay["yaxis"]["title"] = dict(text=ytitle, font=dict(family=_MONO, size=10, color=_TXT))
+            lay["margin"]["b"] = 48
+            lay["legend"] = dict(
+                bgcolor="rgba(255,255,255,0.88)", bordercolor=_GRID, borderwidth=1,
+                font=dict(size=10, color=_TXT, family="Inter, sans-serif"),
+                orientation="h", yanchor="top", y=-0.12, xanchor="left", x=0,
+            )
+            return lay
+
+        # Actuals vs h=1 forecasts
+        st.caption(
+            "Did the model track the actual price? The amber line is what the model predicted "
+            "one month in advance; the tan line is what actually happened. The shaded band is "
+            "the 80% confidence interval — the model expected the price to land inside it 80% of the time."
+        )
         bt1 = bt[bt["horizon"] == 1].sort_values("target_date")
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(
-            x=bt1["target_date"], y=bt1["actual"],
-            mode="lines", name="Actual (KC=F)",
-            line=dict(color=_HIST, width=2),
-        ))
         if bt1["p10"].notna().any():
             fig2.add_trace(go.Scatter(
                 x=bt1["target_date"], y=bt1["p90"],
-                fill=None, mode="lines", line=dict(width=0),
+                mode="lines", fill=None, line=dict(width=0),
                 name="80% interval", showlegend=True,
             ))
             fig2.add_trace(go.Scatter(
                 x=bt1["target_date"], y=bt1["p10"],
-                fill="tonexty", mode="lines", line=dict(width=0),
-                fillcolor="rgba(176,92,26,0.12)", showlegend=False,
+                mode="lines", fill="tonexty", line=dict(width=0),
+                fillcolor="rgba(176,92,26,0.18)", showlegend=False,
             ))
         fig2.add_trace(go.Scatter(
-            x=bt1["target_date"], y=bt1["point_forecast"],
-            mode="markers", name="Forecast h=1",
-            marker=dict(color=_ACCENT, size=7, symbol="circle",
-                        line=dict(color=_SURF, width=1.5)),
+            x=bt1["target_date"], y=bt1["actual"],
+            mode="lines", name="Actual price",
+            line=dict(color=_HIST, width=2),
         ))
-        fig2.update_layout(**_base_layout(340, "Actuals vs h=1 Forecasts with 80% Intervals"))
+        fig2.add_trace(go.Scatter(
+            x=bt1["target_date"], y=bt1["point_forecast"],
+            mode="lines", name="Forecast (1-month ahead)",
+            line=dict(color=_ACCENT, width=2),
+        ))
+        fig2.update_layout(**_chart_layout(360, "Actual vs Forecast — 1-Month Ahead (KC=F)", "USD / lb"))
         st.plotly_chart(fig2, use_container_width=True)
 
         # Error over time by horizon
+        st.caption(
+            "How wrong was the model, in dollar terms? Each line shows the gap between forecast "
+            "and actual price — the shorter the horizon (h=1), the smaller the error tends to be. "
+            "Spikes coincide with sudden market moves that a statistical model cannot anticipate."
+        )
         fig3 = go.Figure()
-        colours = {1: _ACCENT, 2: "#D4915A", 3: "#E8C4A0"}
+        colours = {1: _ACCENT, 2: "#5B8DB8", 3: "#6B9E6B"}
+        labels  = {1: "1-month ahead", 2: "2-month ahead", 3: "3-month ahead"}
         for h in [1, 2, 3]:
             sub = bt[bt["horizon"] == h].sort_values("target_date")
             if sub.empty:
@@ -577,10 +622,10 @@ with tab2:
             err = (sub["actual"] - sub["point_forecast"]).abs()
             fig3.add_trace(go.Scatter(
                 x=sub["target_date"], y=err,
-                mode="lines", name=f"h={h}",
+                mode="lines", name=labels[h],
                 line=dict(color=colours[h], width=1.8),
             ))
-        fig3.update_layout(**_base_layout(220, "Absolute Forecast Error Over Time (USD/lb)"))
+        fig3.update_layout(**_chart_layout(260, "Forecast Error by Horizon — How Far Off Was the Model?", "Error (USD / lb)"))
         st.plotly_chart(fig3, use_container_width=True)
 
         with st.expander("View raw backtest results"):
