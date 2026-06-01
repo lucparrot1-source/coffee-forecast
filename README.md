@@ -2,7 +2,7 @@
 
 A live statistical model for Arabica and Robusta coffee futures. Built to make real-world forecasts, be falsifiable, track performance, and improve over time.
 
-**[→ Live Dashboard](https://your-app.streamlit.app)** &nbsp;·&nbsp; Reruns automatically on the 1st of each month
+**[→ Live Dashboard](https://coffee-forecast.streamlit.app)** &nbsp;·&nbsp; Reruns automatically on the 1st of each month
 
 ## About
 
