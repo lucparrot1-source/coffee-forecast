@@ -1,0 +1,117 @@
+name: Monthly Coffee Forecast Pipeline
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'   # 1st of every month at 06:00 UTC
+  workflow_dispatch:         # allow manual runs from the Actions tab
+
+permissions:
+  contents: write            # required to commit DB and PDF back to the repo
+
+jobs:
+  monthly-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      STREAMLIT_URL: ${{ secrets.STREAMLIT_URL }}
+      COFFEE_DB_PATH: coffee.db
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── Python ──────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # ── R ───────────────────────────────────────────────────────────────
+      - name: Set up R 4.6
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.6.0"
+
+      - name: Cache R library
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-gamlss-${{ runner.os }}-${{ hashFiles('r/gamlss_fit.R') }}
+          restore-keys: |
+            r-gamlss-${{ runner.os }}-
+
+      - name: Install gamlss R package
+        run: |
+          Rscript -e "if (!requireNamespace('gamlss', quietly=TRUE)) install.packages('gamlss', repos='https://cran.rstudio.com/')"
+
+      # ── Quarto ──────────────────────────────────────────────────────────
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: "1.6.40"   # pin — update when upgrading Quarto
+
+      # ── Data ingestion ───────────────────────────────────────────────────
+      - name: Ingest prices (FRED + Alpha Vantage)
+        run: python -m coffee_forecast.data.ingest
+
+      - name: Resample to monthly
+        run: python -m coffee_forecast.data.resample
+
+      # ── Model fits ───────────────────────────────────────────────────────
+      - name: Fit spread model
+        run: python -m coffee_forecast.models.spread
+
+      - name: Fit VECM
+        run: python -m coffee_forecast.models.vecm
+
+      - name: Fit GAMLSS (R subprocess)
+        run: python -m coffee_forecast.models.gamlss
+
+      - name: Combine forecasts (hybrid)
+        run: python -m coffee_forecast.models.hybrid
+
+      # ── Commit DB (Streamlit Cloud reads this) ───────────────────────────
+      - name: Commit updated database
+        run: |
+          git add coffee.db
+          git diff --staged --quiet \
+            && echo "No database changes to commit" \
+            || (git commit -m "data: monthly update $(date +%Y-%m)" && git push || (git pull --rebase && git push))
+
+      # ── PDF report ───────────────────────────────────────────────────────
+      - name: Render monthly PDF report
+        run: python -m coffee_forecast.reports --month "$(date +%Y-%m)" --output-dir reports
+
+      - name: Commit PDF report
+        run: |
+          PDF="reports/$(date +%Y-%m).pdf"
+          if [ -f "$PDF" ]; then
+            git add "$PDF"
+            git diff --staged --quiet \
+              && echo "No PDF changes to commit" \
+              || (git commit -m "report: monthly PDF $(date +%Y-%m)" && git push || (git pull --rebase && git push))
+          else
+            echo "WARNING: PDF not found at $PDF — skipping commit"
+          fi
+
+      # ── Success notification ─────────────────────────────────────────────
+      - name: Send success email
+        run: python -m coffee_forecast.reports --success-email --month "$(date +%Y-%m)"
