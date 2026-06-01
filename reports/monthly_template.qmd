@@ -1,0 +1,171 @@
+---
+title: "Coffee Price Forecast"
+subtitle: "Monthly Statistical Model Report"
+date: today
+format:
+  pdf:
+    documentclass: article
+    geometry: "margin=2.5cm"
+    colorlinks: true
+    fig-pos: "H"
+    toc: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{python}
+import os
+import sqlite3
+
+import pandas as pd
+from IPython.display import Markdown
+from tabulate import tabulate
+
+from coffee_forecast.reports import (
+    build_forecast_chart,
+    fetch_last_prices,
+    fetch_latest_backtest_metrics,
+    fetch_latest_forecasts,
+    fetch_spread_state,
+    generate_analysis,
+)
+
+db_path = os.environ["REPORT_DB_PATH"]
+month = os.environ.get("REPORT_MONTH", "")
+
+conn = sqlite3.connect(db_path)
+forecasts_df = fetch_latest_forecasts(conn)
+last_prices = fetch_last_prices(conn)
+backtest_df = fetch_latest_backtest_metrics(conn)
+spread_state = fetch_spread_state(conn)
+conn.close()
+```
+
+## Executive Summary
+
+```{python}
+analysis = generate_analysis(forecasts_df, last_prices, backtest_df, spread_state)
+Markdown(analysis)
+```
+
+## Current Forecasts
+
+Median (p50) price forecasts and 80% confidence intervals (p10–p90) for the next three months.
+
+```{python}
+if forecasts_df.empty:
+    Markdown("_No forecast data available. Run the pipeline first._")
+else:
+    rows = []
+    for symbol in ["KC=F", "RM=F"]:
+        label = "Arabica (KC=F)" if symbol == "KC=F" else "Robusta (RM=F)"
+        sub = forecasts_df[forecasts_df["symbol"] == symbol].sort_values("horizon")
+        for _, r in sub.iterrows():
+            rows.append(
+                {
+                    "Symbol": label,
+                    "Horizon": f"h={int(r['horizon'])}",
+                    "p50 (cents/lb)": f"{r['p50']:.1f}",
+                    "80% CI": f"[{r['p10']:.1f}, {r['p90']:.1f}]",
+                }
+            )
+    Markdown(tabulate(rows, headers="keys", tablefmt="pipe", floatfmt=".1f"))
+```
+
+```{python}
+#| label: forecast-chart
+#| fig-cap: "Forecast with 80% confidence interval ribbon"
+
+fig = build_forecast_chart(forecasts_df, last_prices)
+import matplotlib.pyplot as plt
+plt.show()
+```
+
+\newpage
+
+## Model Performance
+
+Mean absolute error (MAE), mean absolute percentage error (MAPE), and 80% interval coverage across all backtest windows.
+
+```{python}
+if backtest_df.empty:
+    Markdown(
+        "_No backtest data available. Run `python -m coffee_forecast.models.backtest` first._"
+    )
+else:
+    display_df = backtest_df.copy()
+    display_df["Symbol"] = display_df["symbol"].map(
+        {"KC=F": "Arabica", "RM=F": "Robusta"}
+    ).fillna(display_df["symbol"])
+    display_df["Horizon"] = display_df["horizon"].apply(lambda h: f"h={int(h)}")
+    display_df["MAE (c/lb)"] = display_df["mae"].map("{:.1f}".format)
+    display_df["MAPE (%)"] = (display_df["mape"] * 100).map("{:.1f}%".format)
+    display_df["Coverage 80%"] = (display_df["coverage_80"] * 100).map("{:.0f}%".format)
+    out = display_df[["Symbol", "Horizon", "MAE (c/lb)", "MAPE (%)", "Coverage 80%"]]
+    Markdown(tabulate(out.values.tolist(), headers=out.columns.tolist(), tablefmt="pipe"))
+```
+
+**Coverage 80% target:** ≥80% of 80%-interval forecasts should contain the realized price.
+Values below 80% indicate the model is over-confident.
+
+\newpage
+
+## Arabica–Robusta Spread Signal
+
+Mean-reversion signal on log(Arabica) − log(Robusta) spread.
+Z-score uses an expanding window; entry threshold |z| > 2.
+
+```{python}
+if not spread_state:
+    Markdown(
+        "_No spread data available. Run `python -m coffee_forecast.models.spread` first._"
+    )
+else:
+    _sig_map = {
+        1: "**Buy Arabica** — spread below historical mean, expect reversion upward",
+        -1: "**Sell Arabica / Buy Robusta** — spread above historical mean",
+        0: "**Neutral** — spread within normal range (|z| < 2)",
+    }
+    sig_int = spread_state.get("signal", 0) or 0
+    sig_text = _sig_map.get(sig_int, "Neutral")
+    z = spread_state.get("z_score", float("nan"))
+    hl = spread_state.get("half_life", float("nan"))
+    date = spread_state.get("date", "N/A")
+
+    Markdown(
+        f"| Field | Value |\n"
+        f"|---|---|\n"
+        f"| As of | {date} |\n"
+        f"| Z-score | {z:.2f} |\n"
+        f"| Half-life (AR1) | {hl:.1f} months |\n"
+        f"| Signal | {sig_text} |\n"
+    )
+```
+
+\newpage
+
+## Data & Methodology
+
+**Data sources:** Arabica (KC=F) and Robusta (RM=F) monthly prices from FRED
+(`PCOFFOTMUSDM`, `PCOFFROBUSDM`). FX drivers (BRL/USD, VND/USD, IDR/USD) from
+Alpha Vantage. DXY broad index from FRED (`DTWEXBGS`). Data starts 2000-01-01;
+monthly series is the mean of daily adjusted closes within each calendar month.
+
+**VECM:** A two-variable Vector Error Correction Model is fit on log Arabica and
+log Robusta prices, with BRL, VND, IDR, and DXY as exogenous drivers. Cointegration
+rank is fixed at 1 (confirmed by Engle-Granger test, p=0.009). Lag order is selected
+by AIC each run. Point forecasts at 1, 2, and 3 months use a naïve FX assumption
+(hold FX at last observed value).
+
+**GAMLSS SHASH:** A Sinh-ArcSinh distribution is fit (via R's `gamlss` package) to
+the VECM forecast residuals, separately per symbol and per volatility regime
+(Low / Medium / High, defined by rolling 12-month standard deviation). This gives
+a full predictive distribution. Final price quantiles are
+`price_qX = vecm_point × exp(gamlss_residual_qX)`.
+
+**Spread signal:** An AR(1) model is fit to the log spread series; the expanding
+z-score triggers entry at |z| > 2 and exit at |z| < 0.5.
+
+_Report generated by the `coffee-forecast` pipeline._
