@@ -17,6 +17,7 @@ jobs:
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
       STREAMLIT_URL: ${{ secrets.STREAMLIT_URL }}
       COFFEE_DB_PATH: coffee.db
 

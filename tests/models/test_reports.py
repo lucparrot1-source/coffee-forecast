@@ -381,6 +381,7 @@ def test_send_success_email_posts_to_resend(db_with_forecast_data, monkeypatch):
     from coffee_forecast.reports import send_success_email
 
     monkeypatch.setenv("RESEND_API_KEY", "test-key")
+    monkeypatch.setenv("ALERT_EMAIL", "test@example.com")
 
     posted = []
     def _fake_post(url, **kwargs):
@@ -395,7 +396,7 @@ def test_send_success_email_posts_to_resend(db_with_forecast_data, monkeypatch):
     payload = posted[0]["json"]
     assert "[coffee-forecast]" in payload["subject"]
     assert "2026-05" in payload["subject"]
-    assert payload["to"] == ["lucparrot1@gmail.com"]
+    assert payload["to"] == ["test@example.com"]
     assert "Bearer test-key" in posted[0]["headers"]["Authorization"]
 
 
@@ -423,6 +424,7 @@ def test_cli_success_email_flag_calls_send_success_email(
     from coffee_forecast import reports as reports_mod
 
     monkeypatch.setenv("RESEND_API_KEY", "test-key")
+    monkeypatch.setenv("ALERT_EMAIL", "test@example.com")
     monkeypatch.setenv("COFFEE_DB_PATH", str(db_with_forecast_data))
 
     posted = []

@@ -277,7 +277,7 @@ def _build_success_email_body(
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _post_success_notification(api_key: str, month: str, body: str) -> None:
+def _post_success_notification(api_key: str, alert_email: str, month: str, body: str) -> None:
     resp = requests.post(
         "https://api.resend.com/emails",
         headers={
@@ -286,7 +286,7 @@ def _post_success_notification(api_key: str, month: str, body: str) -> None:
         },
         json={
             "from": "onboarding@resend.dev",
-            "to": ["lucparrot1@gmail.com"],
+            "to": [alert_email],
             "subject": f"[coffee-forecast] Monthly report ready: {month}",
             "html": body,
         },
@@ -301,8 +301,9 @@ def send_success_email(month: str, db_path: "str | Path") -> None:
     No-op if RESEND_API_KEY is not set.
     """
     api_key = os.getenv("RESEND_API_KEY", "")
-    if not api_key:
-        log.warning("RESEND_API_KEY not set — skipping success email")
+    alert_email = os.getenv("ALERT_EMAIL", "")
+    if not api_key or not alert_email:
+        log.warning("RESEND_API_KEY or ALERT_EMAIL not set — skipping success email")
         return
 
     conn = sqlite3.connect(str(db_path))
@@ -315,7 +316,7 @@ def send_success_email(month: str, db_path: "str | Path") -> None:
         conn.close()
 
     body = _build_success_email_body(month, forecasts_df, last_prices, spread_state)
-    _post_success_notification(api_key, month, body)
+    _post_success_notification(api_key, alert_email, month, body)
     log.info("Success email sent for %s", month)
 
 
