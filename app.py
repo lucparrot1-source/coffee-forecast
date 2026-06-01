@@ -176,7 +176,7 @@ def _base_layout(height: int = 360, title: str | None = None) -> dict:
     return dict(
         height=height,
         title=dict(text=title, font=dict(family="Lora, Georgia, serif", color=_DARK, size=14)) if title else None,
-        paper_bgcolor=_BG,
+        paper_bgcolor=_SURF,
         plot_bgcolor=_SURF,
         font=dict(family="Inter, sans-serif", color=_TXT, size=11),
         margin=dict(l=0, r=0, t=36 if title else 8, b=0),
@@ -335,7 +335,8 @@ def _delta_str(forecast: float | None, last_actual: float | None) -> str:
     if forecast is None or last_actual is None:
         return ""
     d = forecast - last_actual
-    return f"{'+' if d >= 0 else ''}${d:.2f} vs last actual"
+    sign = "+" if d >= 0 else "-"
+    return f"{sign}${abs(d):.2f} vs last actual"
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -448,20 +449,30 @@ with tab1:
         if has_band:
             p10_clean = [v if (v is not None and not (isinstance(v, float) and np.isnan(v))) else p50_vals[i] for i, v in enumerate(p10_vals)]
             p90_clean = [v if (v is not None and not (isinstance(v, float) and np.isnan(v))) else p50_vals[i] for i, v in enumerate(p90_vals)]
+            # Anchor band to last actual so it connects with the history line
+            anchor_date = price_hist["date"].iloc[-1] if not price_hist.empty else fc_dates_list[0]
+            anchor_val = float(price_hist["adj_close"].iloc[-1]) if not price_hist.empty else p50_vals[0]
+            band_x = [anchor_date] + fc_dates_list + list(reversed(fc_dates_list)) + [anchor_date]
+            band_y = [anchor_val] + p90_clean + list(reversed(p10_clean)) + [anchor_val]
             fig.add_trace(go.Scatter(
-                x=fc_dates_list + list(reversed(fc_dates_list)),
-                y=p90_clean + list(reversed(p10_clean)),
-                fill="toself", fillcolor="rgba(176,92,26,0.10)",
+                x=band_x, y=band_y,
+                fill="toself", fillcolor="rgba(176,92,26,0.18)",
                 line=dict(width=0), name="80% interval", hoverinfo="skip",
             ))
         if null_horizons:
             st.caption(f"⚠️ 80% interval unavailable for h={null_horizons} — GAMLSS did not converge for those horizons.")
 
+        # Connect forecast line to last actual so there is no visual gap
+        if not price_hist.empty:
+            fc_x = [price_hist["date"].iloc[-1]] + fc_dates_list
+            fc_y = [float(price_hist["adj_close"].iloc[-1])] + p50_vals
+        else:
+            fc_x, fc_y = fc_dates_list, p50_vals
+
         fig.add_trace(go.Scatter(
-            x=fc_dates_list, y=p50_vals,
-            mode="lines+markers", name="Forecast (p50)",
-            line=dict(color=_ACCENT, width=2.5),
-            marker=dict(size=9, color=_ACCENT, line=dict(color=_SURF, width=2)),
+            x=fc_x, y=fc_y,
+            mode="lines", name="Forecast (p50)",
+            line=dict(color=_ACCENT, width=2.5, dash="solid"),
         ))
 
         if not price_hist.empty:
@@ -471,7 +482,9 @@ with tab1:
                                text="LAST DATA", showarrow=False, yshift=6,
                                font=dict(family=_MONO, size=9, color=_TXT))
 
-        fig.update_layout(**_base_layout(380))
+        layout1 = _base_layout(380, "Arabica Coffee Futures — 3-Month Price Forecast (KC=F)")
+        layout1["yaxis"]["title"] = dict(text="USD / lb", font=dict(family=_MONO, size=10, color=_TXT))
+        fig.update_layout(**layout1)
         st.plotly_chart(fig, use_container_width=True)
 
         # Performance summary (from accuracy_log)
