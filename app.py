@@ -182,7 +182,7 @@ def _base_layout(height: int = 360, title: str | None = None) -> dict:
         margin=dict(l=0, r=0, t=36 if title else 8, b=0),
         xaxis=dict(showgrid=False, zeroline=False, linecolor=_GRID,
                    tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
-        yaxis=dict(showgrid=False, zeroline=False, linecolor=_GRID,
+        yaxis=dict(showgrid=True, gridcolor="rgba(0,0,0,0.06)", zeroline=False, linecolor=_GRID,
                    tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11, color=_TXT),
                     orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
@@ -614,17 +614,19 @@ with tab2:
         fig3 = go.Figure()
         colours = {1: _ACCENT, 2: "#5B8DB8", 3: "#6B9E6B"}
         labels  = {1: "1-month ahead", 2: "2-month ahead", 3: "3-month ahead"}
+        cutoff = pd.Timestamp("2024-01-01")
         for h in [1, 2, 3]:
-            sub = bt[bt["horizon"] == h].sort_values("target_date")
+            sub = bt[(bt["horizon"] == h) & (bt["target_date"] >= cutoff)].sort_values("target_date")
             if sub.empty:
                 continue
             err = (sub["actual"] - sub["point_forecast"]).abs()
             fig3.add_trace(go.Scatter(
                 x=sub["target_date"], y=err,
                 mode="lines", name=labels[h],
-                line=dict(color=colours[h], width=1.8),
+                line=dict(color=colours[h], width=2),
             ))
-        fig3.update_layout(**_chart_layout(260, "Forecast Error by Horizon — How Far Off Was the Model?", "Error (USD / lb)"))
+        lay3 = _chart_layout(260, "Forecast Error by Horizon — 2024 to Present", "Error (USD / lb)")
+        fig3.update_layout(**lay3)
         st.plotly_chart(fig3, use_container_width=True)
 
         with st.expander("View raw backtest results"):
