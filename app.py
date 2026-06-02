@@ -846,25 +846,28 @@ with tab4:
         ))
         fig6.add_annotation(
             x=spread["date"].iloc[-1], y=cur_z,
-            text=f"  Now: {cur_z:+.2f}", showarrow=False,
-            font=dict(family=_MONO, size=10, color=_ACCENT),
+            text=f"  Now: {cur_z:+.2f}",
+            showarrow=True, arrowhead=0, arrowwidth=1.5, arrowcolor=_ACCENT,
+            ax=40, ay=-25,
+            font=dict(family=_MONO, size=13, color=_ACCENT, weight=700),
         )
-        # Mark today
         today = pd.Timestamp.today()
         if today >= spread["date"].min() and today <= spread["date"].max():
             fig6.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
-        layout6 = _base_layout(300, "Arabica vs Robusta — Spread Z-Score")
+        layout6 = _base_layout(340, "Arabica vs Robusta — Spread Z-Score")
         layout6["yaxis"]["title"] = dict(
-            text="Z-Score<br><sub>(standard deviations from average ratio)</sub>",
-            font=dict(family=_MONO, size=10, color=_TXT)
+            text="Z-Score",
+            font=dict(family=_MONO, size=12, color="#000000", weight=700),
         )
-        layout6["yaxis"]["showgrid"] = False
-        layout6["yaxis"]["gridcolor"] = "rgba(0,0,0,0)"
+        layout6["yaxis"]["dtick"] = 1
+        layout6["yaxis"]["showgrid"] = True
+        layout6["yaxis"]["gridcolor"] = "rgba(0,0,0,0.06)"
         fig6.update_layout(**layout6)
         st.plotly_chart(fig6, use_container_width=True)
-        st.caption(
-            "Red zone = Arabica expensive (z > 2) · Green zone = Arabica cheap (z < −2) "
-            "· Dotted lines = exit bands (±0.5)"
+        st.html(
+            '<p style="font-size:13px; color:#000000; margin-top:-8px;">'
+            "Red zone = Arabica expensive (z &gt; 2) · Green zone = Arabica cheap (z &lt; −2) "
+            "· Dotted lines = exit bands (±0.5)</p>"
         )
 
 
