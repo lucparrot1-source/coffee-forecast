@@ -1,14 +1,31 @@
 ---
-title: "Coffee Price Forecast"
-subtitle: "Monthly Statistical Model Report"
+title: "Luc's Statistical Coffee Price Forecast"
+subtitle: "Monthly Model Report"
 date: today
 format:
   pdf:
-    documentclass: article
-    geometry: "margin=2.5cm"
+    documentclass: scrartcl
+    geometry: "margin=2.5cm, top=2cm"
     colorlinks: true
     fig-pos: "H"
     toc: false
+    number-sections: false
+    include-in-header:
+      text: |
+        \usepackage{xcolor}
+        \usepackage{booktabs}
+        \usepackage{titlesec}
+        \usepackage{fancyhdr}
+        \definecolor{coffeeamber}{RGB}{176, 92, 26}
+        \definecolor{coffeecream}{RGB}{251, 247, 242}
+        \titleformat{\section}{\large\bfseries\color{coffeeamber}}{\thesection}{0.5em}{}[\titlerule]
+        \titleformat{\subsection}{\normalsize\bfseries\color{coffeeamber}}{\thesubsection}{0.5em}{}
+        \pagestyle{fancy}
+        \fancyhf{}
+        \fancyhead[L]{\small\textcolor{coffeeamber}{Luc's Statistical Coffee Price Forecast}}
+        \fancyhead[R]{\small\textcolor{gray}{\today}}
+        \fancyfoot[C]{\small\thepage}
+        \renewcommand{\headrulewidth}{0.4pt}
 execute:
   echo: false
   warning: false
@@ -19,17 +36,22 @@ execute:
 import os
 import sqlite3
 
+import matplotlib.pyplot as plt
 import pandas as pd
-from IPython.display import Markdown
+from IPython.display import Markdown, display
 from tabulate import tabulate
 
 from coffee_forecast.reports import (
     build_forecast_chart,
+    build_spread_chart,
     fetch_last_prices,
     fetch_latest_backtest_metrics,
     fetch_latest_forecasts,
+    fetch_recent_performance,
     fetch_spread_state,
+    fetch_spread_history,
     generate_analysis,
+    generate_recent_commentary,
 )
 
 db_path = os.environ["REPORT_DB_PATH"]
@@ -40,6 +62,8 @@ forecasts_df = fetch_latest_forecasts(conn)
 last_prices = fetch_last_prices(conn)
 backtest_df = fetch_latest_backtest_metrics(conn)
 spread_state = fetch_spread_state(conn)
+spread_hist = fetch_spread_history(conn, months=36)
+recent_perf_df = fetch_recent_performance(conn)
 conn.close()
 ```
 
@@ -47,7 +71,7 @@ conn.close()
 
 ```{python}
 analysis = generate_analysis(forecasts_df, last_prices, backtest_df, spread_state)
-Markdown(analysis)
+display(Markdown(analysis))
 ```
 
 ## Current Forecasts
@@ -56,30 +80,33 @@ Median (p50) price forecasts and 80% confidence intervals (p10–p90) for the ne
 
 ```{python}
 if forecasts_df.empty:
-    Markdown("_No forecast data available. Run the pipeline first._")
+    display(Markdown("_No forecast data available. Run the pipeline first._"))
 else:
     rows = []
     for symbol in ["KC=F", "RM=F"]:
         label = "Arabica (KC=F)" if symbol == "KC=F" else "Robusta (RM=F)"
         sub = forecasts_df[forecasts_df["symbol"] == symbol].sort_values("horizon")
         for _, r in sub.iterrows():
+            band = round(float(r["p90"]) - float(r["p10"]), 1)
             rows.append(
                 {
                     "Symbol": label,
                     "Horizon": f"h={int(r['horizon'])}",
-                    "p50 (cents/lb)": f"{r['p50']:.1f}",
-                    "80% CI": f"[{r['p10']:.1f}, {r['p90']:.1f}]",
+                    "Median (¢/lb)": f"{r['p50']:.1f}",
+                    "80% CI (¢/lb)": f"[{r['p10']:.1f}, {r['p90']:.1f}]",
+                    "Band width": f"{band:.1f}",
                 }
             )
-    Markdown(tabulate(rows, headers="keys", tablefmt="pipe", floatfmt=".1f"))
+    display(Markdown(tabulate(rows, headers="keys", tablefmt="pipe")))
 ```
 
 ```{python}
 #| label: forecast-chart
-#| fig-cap: "Forecast with 80% confidence interval ribbon"
+#| fig-cap: "Price trajectory with 80% confidence ribbon"
+#| fig-width: 7
+#| fig-height: 3.5
 
 fig = build_forecast_chart(forecasts_df, last_prices)
-import matplotlib.pyplot as plt
 plt.show()
 ```
 
@@ -87,46 +114,88 @@ plt.show()
 
 ## Model Performance
 
-Mean absolute error (MAE), mean absolute percentage error (MAPE), and 80% interval coverage across all backtest windows.
+Mean absolute error (MAE), mean absolute percentage error (MAPE), and 80% interval coverage across all walk-forward backtest windows.
 
 ```{python}
 if backtest_df.empty:
-    Markdown(
+    display(Markdown(
         "_No backtest data available. Run `python -m coffee_forecast.models.backtest` first._"
-    )
+    ))
 else:
     display_df = backtest_df.copy()
     display_df["Symbol"] = display_df["symbol"].map(
         {"KC=F": "Arabica", "RM=F": "Robusta"}
     ).fillna(display_df["symbol"])
     display_df["Horizon"] = display_df["horizon"].apply(lambda h: f"h={int(h)}")
-    display_df["MAE (c/lb)"] = display_df["mae"].map("{:.1f}".format)
-    display_df["MAPE (%)"] = (display_df["mape"] * 100).map("{:.1f}%".format)
-    display_df["Coverage 80%"] = (display_df["coverage_80"] * 100).map("{:.0f}%".format)
-    out = display_df[["Symbol", "Horizon", "MAE (c/lb)", "MAPE (%)", "Coverage 80%"]]
-    Markdown(tabulate(out.values.tolist(), headers=out.columns.tolist(), tablefmt="pipe"))
+    display_df["MAE (¢/lb)"] = display_df["mae"].apply(
+        lambda x: f"{x:.1f}" if pd.notna(x) else "N/A"
+    )
+    display_df["MAPE"] = display_df["mape"].apply(
+        lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A"
+    )
+    display_df["Coverage 80%"] = display_df["coverage_80"].apply(
+        lambda x: f"{x*100:.0f}%" if pd.notna(x) else "N/A"
+    )
+    out = display_df[["Symbol", "Horizon", "MAE (¢/lb)", "MAPE", "Coverage 80%"]]
+    display(Markdown(tabulate(out.values.tolist(), headers=out.columns.tolist(), tablefmt="pipe")))
 ```
 
-**Coverage 80% target:** ≥80% of 80%-interval forecasts should contain the realized price.
+**Coverage 80% target:** ≥80% of forecast ranges should contain the realized price.
 Values below 80% indicate the model is over-confident.
+
+\newpage
+
+## Recent Forecast Performance
+
+One-month-ahead forecasts versus realized prices over the last three months.
+
+```{python}
+if recent_perf_df.empty:
+    display(Markdown("_No recent backtest data available._"))
+else:
+    rows = []
+    for _, r in recent_perf_df.iterrows():
+        symbol_label = "Arabica (KC=F)" if r["symbol"] == "KC=F" else "Robusta (RM=F)"
+        fc = float(r["point_forecast"]) if pd.notna(r["point_forecast"]) else float("nan")
+        actual = float(r["actual"]) if pd.notna(r["actual"]) else float("nan")
+        err = float(r["error_pct"]) if pd.notna(r["error_pct"]) else float("nan")
+        direction = "above" if err > 0 else "below"
+        rows.append({
+            "Month": str(r["target_date"])[:7],
+            "Symbol": symbol_label,
+            "Forecast (¢/lb)": f"{fc:.1f}",
+            "Actual (¢/lb)": f"{actual:.1f}",
+            "Error": f"{'+' if err > 0 else ''}{err:.1f}% ({direction} actual)",
+        })
+    display(Markdown(tabulate(rows, headers="keys", tablefmt="pipe")))
+```
+
+```{python}
+commentary = generate_recent_commentary(recent_perf_df)
+display(Markdown(commentary))
+```
 
 \newpage
 
 ## Arabica–Robusta Spread Signal
 
-Mean-reversion signal on log(Arabica) − log(Robusta) spread.
-Z-score uses an expanding window; entry threshold |z| > 2.
+The spread model tracks whether Arabica is unusually cheap or expensive relative to Robusta.
+It measures the **z-score** of the log price ratio — how many standard deviations the current
+ratio sits from its long-run average. A z-score near zero means the relationship is normal;
+a z-score beyond ±2 means a rare dislocation (this happens roughly 5% of the time historically)
+that has tended to revert. A trade signal fires at **|z| > 2** and closes once the ratio
+normalises back to **|z| < 0.5**.
 
 ```{python}
 if not spread_state:
-    Markdown(
+    display(Markdown(
         "_No spread data available. Run `python -m coffee_forecast.models.spread` first._"
-    )
+    ))
 else:
     _sig_map = {
-        1: "**Buy Arabica** — spread below historical mean, expect reversion upward",
-        -1: "**Sell Arabica / Buy Robusta** — spread above historical mean",
-        0: "**Neutral** — spread within normal range (|z| < 2)",
+        1: "**Buy Arabica** — Arabica unusually cheap vs Robusta; spread expected to revert upward",
+        -1: "**Buy Robusta** — Arabica unusually expensive vs Robusta; spread expected to revert downward",
+        0: "**Neutral** — ratio within normal range, no edge detected",
     }
     sig_int = spread_state.get("signal", 0) or 0
     sig_text = _sig_map.get(sig_int, "Neutral")
@@ -134,14 +203,26 @@ else:
     hl = spread_state.get("half_life", float("nan"))
     date = spread_state.get("date", "N/A")
 
-    Markdown(
-        f"| Field | Value |\n"
+    display(Markdown(
+        f"| | |\n"
         f"|---|---|\n"
-        f"| As of | {date} |\n"
-        f"| Z-score | {z:.2f} |\n"
-        f"| Half-life (AR1) | {hl:.1f} months |\n"
-        f"| Signal | {sig_text} |\n"
-    )
+        f"| **As of** | {date} |\n"
+        f"| **Current signal** | {sig_text} |\n"
+        f"| **Z-score** | {z:.2f} std devs from average |\n"
+        f"| **Half-life** | {hl:.1f} months — typical time to revert to average |\n"
+        f"| **Entry threshold** | |z| > 2.0 (top/bottom ~5% of history) |\n"
+        f"| **Exit threshold** | |z| < 0.5 (back near average) |\n"
+    ))
+```
+
+```{python}
+#| label: spread-chart
+#| fig-cap: "Z-score of Arabica/Robusta log spread — last 36 months. Red zone = Arabica expensive; green zone = Arabica cheap. Dashed lines mark entry thresholds (±2 std devs); dotted lines mark exit thresholds (±0.5)."
+#| fig-width: 7
+#| fig-height: 3
+
+fig_spread = build_spread_chart(spread_hist)
+plt.show()
 ```
 
 \newpage

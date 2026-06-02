@@ -14,9 +14,6 @@ import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 import matplotlib
-
-matplotlib.use("Agg")  # headless — no display needed
-
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -117,6 +114,182 @@ def fetch_spread_state(conn: sqlite3.Connection) -> dict[str, object]:
     }
 
 
+def fetch_spread_history(conn: sqlite3.Connection, months: int = 36) -> pd.DataFrame:
+    """Fetch the last N months of spread z-score history.
+
+    Args:
+        conn: SQLite connection
+        months: Number of months of history to return
+
+    Returns:
+        DataFrame with columns: date, z_score, signal. Sorted ascending by date.
+    """
+    df = pd.read_sql(
+        "SELECT date, z_score, signal FROM spread_signals ORDER BY date DESC LIMIT ?",
+        conn,
+        params=(months,),
+    )
+    if df.empty:
+        return df
+    df["date"] = pd.to_datetime(df["date"])
+    return df.sort_values("date").reset_index(drop=True)
+
+
+def build_spread_chart(spread_hist: pd.DataFrame) -> "matplotlib.figure.Figure":
+    """Build a matplotlib z-score chart for the spread signal section.
+
+    Args:
+        spread_hist: DataFrame from fetch_spread_history
+
+    Returns:
+        A matplotlib Figure. Returns a placeholder figure if data is empty.
+    """
+    fig, ax = plt.subplots(figsize=(8, 3))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    if spread_hist.empty:
+        ax.text(0.5, 0.5, "No spread data", ha="center", va="center", transform=ax.transAxes)
+        return fig
+
+    dates = spread_hist["date"]
+    z = spread_hist["z_score"]
+
+    # Shaded threshold regions
+    ax.axhspan(2, z.max() + 0.5, color="#C62828", alpha=0.06)
+    ax.axhspan(z.min() - 0.5, -2, color="#2E7D32", alpha=0.06)
+
+    # Reference lines
+    for level, color, ls in [(2, "#C62828", "--"), (-2, "#2E7D32", "--"),
+                              (0.5, "#888", ":"), (-0.5, "#888", ":")]:
+        ax.axhline(level, color=color, linewidth=0.8, linestyle=ls)
+
+    # Zero line
+    ax.axhline(0, color="#CCCCCC", linewidth=0.6)
+
+    # Z-score line
+    ax.plot(dates, z, color="#B05C1A", linewidth=1.8)
+    ax.fill_between(dates, z, 0, color="#B05C1A", alpha=0.08)
+
+    ax.set_ylabel("Z-Score (standard deviations)", fontsize=9)
+    ax.set_xlabel("")
+    ax.tick_params(labelsize=8)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.annotate("Entry zone (|z|>2)", xy=(dates.iloc[-1], 2.05),
+                fontsize=7, color="#C62828", ha="right")
+    ax.annotate("Entry zone (|z|>2)", xy=(dates.iloc[-1], -2.3),
+                fontsize=7, color="#2E7D32", ha="right")
+    fig.tight_layout()
+    return fig
+
+
+def fetch_recent_performance(conn: sqlite3.Connection, n_months: int = 3) -> pd.DataFrame:
+    """Fetch the last N months of h=1 forecast vs actual for KC=F and RM=F.
+
+    For each (target_date, symbol) pair picks the row with the most recent train_end
+    (closest realistic one-month-ahead forecast).
+
+    Returns:
+        DataFrame with columns: target_date, symbol, point_forecast, actual, error_pct
+        Empty DataFrame if no backtest data with actuals exists.
+    """
+    df = pd.read_sql(
+        """
+        SELECT b.target_date, b.symbol, b.point_forecast, b.actual
+        FROM backtest_results b
+        JOIN (
+            SELECT target_date, symbol, MAX(train_end) AS latest_train
+            FROM backtest_results
+            WHERE horizon = 1 AND actual IS NOT NULL
+              AND symbol IN ('KC=F', 'RM=F')
+            GROUP BY target_date, symbol
+        ) latest ON b.target_date = latest.target_date
+               AND b.symbol = latest.symbol
+               AND b.train_end = latest.latest_train
+        WHERE b.horizon = 1 AND b.actual IS NOT NULL
+        ORDER BY b.target_date DESC, b.symbol
+        """,
+        conn,
+    )
+    if df.empty:
+        return df
+    # Keep only the most recent n_months distinct target dates
+    recent_dates = df["target_date"].unique()[:n_months]
+    df = df[df["target_date"].isin(recent_dates)].copy()
+    df["error_pct"] = (df["point_forecast"] - df["actual"]) / df["actual"] * 100
+    return df
+
+
+def generate_recent_commentary(recent_df: pd.DataFrame) -> str:
+    """Generate a plain-English paragraph per month explaining recent h=1 forecast performance.
+
+    Asks Claude to cover: what was forecast, what actually happened, size of miss,
+    and plausible reasons a statistical model would not have anticipated the outcome.
+
+    Returns:
+        Multi-paragraph markdown string, or a fallback message if the API is unavailable.
+    """
+    if recent_df.empty:
+        return "_No recent backtest data available._"
+
+    rows = []
+    for _, r in recent_df.iterrows():
+        fc = float(r["point_forecast"]) if r["point_forecast"] is not None else None
+        actual = float(r["actual"]) if r["actual"] is not None else None
+        err = float(r["error_pct"]) if r["error_pct"] is not None else None
+        rows.append({
+            "month": str(r["target_date"])[:7],
+            "symbol": r["symbol"],
+            "forecast_cpl": round(fc, 1) if fc is not None else None,
+            "actual_cpl": round(actual, 1) if actual is not None else None,
+            "error_pct": round(err, 1) if err is not None else None,
+            "direction": "overestimated" if err and err > 0 else "underestimated",
+        })
+
+    try:
+        import anthropic
+        from dotenv import dotenv_values
+        from tenacity import retry_if_exception_type
+
+        api_key = dotenv_values().get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        client = anthropic.Anthropic(api_key=api_key)
+
+        prompt = (
+            "You are a commodity analyst. The data below shows one-month-ahead coffee price forecasts "
+            "versus the prices that were actually observed. "
+            "Write one short paragraph per calendar month (group both symbols together per month). "
+            "Each paragraph should cover: what the model forecast for Arabica and Robusta, what actually happened, "
+            "the size of the miss in percentage terms, and one or two plausible reasons a purely statistical model "
+            "working from historical price relationships might not have anticipated this outcome "
+            "(e.g. unexpected supply shocks, FX moves, weather events, harvest disruptions, policy changes). "
+            "Be specific but brief. Paragraphs should be 3-4 sentences. "
+            "FORMATTING RULES: write the unit as *¢/lb* (asterisks for italics, no space). "
+            "Do not use bullet points. Do not use em dashes or en dashes. "
+            "Do not use AI clichés ('it is worth noting', 'importantly', 'robust', 'nuanced'). "
+            "Write like a straightforward analyst.\n\n"
+            f"Data (JSON):\n{json.dumps(rows, indent=2)}"
+        )
+
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            retry=retry_if_exception_type(anthropic.RateLimitError),
+            reraise=True,
+        )
+        def _call() -> str:
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=700,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text if msg.content else ""
+
+        return _call()
+    except Exception as exc:
+        log.warning("Recent commentary unavailable: %s", exc)
+        return "_AI-generated commentary unavailable._"
+
+
 def _build_analysis_prompt(
     forecasts_df: pd.DataFrame,
     last_prices: dict[str, float],
@@ -129,11 +302,13 @@ def _build_analysis_prompt(
     fc_rows: list[dict] = []
     if not forecasts_df.empty:
         for _, r in forecasts_df.iterrows():
+            p10, p90 = round(float(r["p10"]), 1), round(float(r["p90"]), 1)
             fc_rows.append({
                 "symbol": r["symbol"],
                 "horizon_months": int(r["horizon"]),
-                "p50_forecast_cents_per_lb": round(float(r["p50"]), 1),
-                "80pct_interval": [round(float(r["p10"]), 1), round(float(r["p90"]), 1)],
+                "p50_forecast": round(float(r["p50"]), 1),
+                "80pct_band_width": round(p90 - p10, 1),
+                "80pct_interval": [p10, p90],
             })
 
     perf_rows: list[dict] = []
@@ -171,7 +346,11 @@ def _build_analysis_prompt(
         "(2) how the model has been performing historically (use MAPE and coverage_80 - "
         "explain coverage_80 as 'X% of our forecast ranges contained the actual price, "
         "versus an 80% target'), and (3) what the spread signal is saying in plain English. "
-        "Do not use bullet points. Write in plain English. Do not mention the model internals "
+        "FORMATTING RULES: "
+        "Always write the unit as *¢/lb* (with asterisks so it renders in italics, no space between ¢ and /lb). "
+        "When describing forecast uncertainty, express it as a band width, not raw bounds. "
+        "For example: 'the 80% forecast range spans about 57 *¢/lb*' rather than 'between 283 and 340 cents'. "
+        "Do not use bullet points. Do not mention the model internals "
         "(VECM, GAMLSS, SHASH). Use 'the model' or 'our forecast' instead. "
         "Do not use em dashes or en dashes. Do not use phrases typical of AI writing "
         "such as 'it is worth noting', 'importantly', 'in conclusion', 'delve', 'robust', "
@@ -358,11 +537,25 @@ def build_forecast_chart(
         ax.fill_between(horizons, p10s, p90s, color=color, alpha=0.15)
 
     ax.set_xlabel("Months ahead", fontsize=10)
-    ax.set_ylabel("Price (cents/lb)", fontsize=10)
+    ax.set_ylabel("Price (¢/lb)", fontsize=10)
     ax.set_xticks([0, 1, 2, 3])
     ax.set_xticklabels(["Now", "h=1", "h=2", "h=3"])
     ax.legend(framealpha=0.5)
     ax.spines[["top", "right"]].set_visible(False)
+
+    # Broken-axis marks: two diagonal slashes at the base of the y-axis to
+    # indicate the axis does not start at zero.
+    d = 0.018
+    for y0 in (0.0, 0.055):
+        ax.plot(
+            (-d, d),
+            (y0 - d * 1.4, y0 + d * 1.4),
+            transform=ax.transAxes,
+            color="black",
+            lw=1.1,
+            clip_on=False,
+        )
+
     fig.tight_layout()
     return fig
 
@@ -425,10 +618,9 @@ def render_monthly_report(
             "--to",
             "pdf",
             "--output",
-            f"{month}.pdf",   # filename only — quarto rejects paths in --output
-            "--output-dir",
-            str(output_dir.resolve()),
+            f"{month}.pdf",
         ],
+        cwd=str(output_dir.resolve()),  # quarto --output-dir is unreliable; cwd is the output target
         env=env,
         capture_output=True,
         text=True,
@@ -443,6 +635,7 @@ def render_monthly_report(
 
 
 def main() -> None:
+    matplotlib.use("Agg")  # headless — must be set before render_monthly_report creates figures
     configure_logging()
     default_db = os.getenv("COFFEE_DB_PATH", "data/coffee.db")
     parser = argparse.ArgumentParser(description="Render monthly coffee forecast PDF or send success email")
