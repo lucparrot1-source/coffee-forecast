@@ -480,16 +480,15 @@ with tab1:
             today_str = price_hist["date"].iloc[-1].strftime("%Y-%m-%d")
             fig.add_vline(x=today_str, line_dash="dot", line_color=_HIST, line_width=1)
 
-        # "FORECAST PERIOD →" label with an arrow spanning the forecast region
-        if fc_dates_list:
+        # "FORECAST PERIOD →" label centred in the forecast region
+        if fc_dates_list and len(fc_dates_list) >= 2:
+            mid_idx = len(fc_dates_list) // 2
             fig.add_annotation(
-                x=fc_dates_list[-1], y=1.0, yref="paper",
-                ax=fc_dates_list[0], ay=1.0, ayref="paper",
-                text="FORECAST PERIOD",
-                showarrow=True, arrowhead=2, arrowwidth=1.2,
-                arrowcolor=_TXT, arrowside="end",
+                x=fc_dates_list[mid_idx], y=1.0, yref="paper",
+                text="FORECAST PERIOD →",
+                showarrow=False,
                 font=dict(family=_MONO, size=9, color=_TXT),
-                xanchor="right", yshift=10, axref="x",
+                xanchor="center", yshift=10,
                 bgcolor="rgba(255,255,255,0.7)", borderpad=3,
             )
 
