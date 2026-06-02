@@ -1236,8 +1236,8 @@ with tab4:
         # ── Long-run chart ────────────────────────────────────────────────────
         st.html("<br>")
         st.html(
-            '<p style="font-family:\'Inter\',sans-serif; font-size:0.70rem; font-weight:700;'
-            ' letter-spacing:0.1em; text-transform:uppercase; color:#8C6E52; margin:0 0 8px 0;">'
+            '<p style="font-family:\'Lora\',serif; font-size:1.5rem; font-weight:700;'
+            ' color:#2C1A0E; margin:0 0 8px 0;">'
             "Long-Run View</p>"
             '<p style="font-family:\'Lora\',serif; font-size:1.05rem; color:#4A2C1A;'
             ' line-height:1.65; margin:0 0 12px 0;">'
