@@ -417,13 +417,27 @@ with tab1:
         )
         st.html("<br>")
 
-        # Hero metrics
-        cols = st.columns(3)
-        for col, (_, row) in zip(cols, kc.iterrows()):
-            h = int(row["horizon"])
+        # Hero metrics — current month actual + 3 forecast months
+        cols = st.columns(4)
+
+        # Current month (last actual)
+        if not price_hist.empty:
+            last_row = price_hist.iloc[-1]
+            prev_actual = float(price_hist["adj_close"].iloc[-2]) if len(price_hist) >= 2 else None
+            current_month_label = pd.to_datetime(last_row["date"]).strftime("%B").upper()
+            current_delta = _delta_str(float(last_row["adj_close"]), prev_actual).replace("vs last actual", "vs prior month") if prev_actual else ""
+            cols[0].metric(
+                f"{current_month_label} (actual)",
+                _fmt_price(float(last_row["adj_close"])),
+                current_delta,
+            )
+
+        for col, (_, row) in zip(cols[1:], kc.iterrows()):
+            target = pd.to_datetime(row["target_date"])
+            month_label = target.strftime("%B").upper()
             p50 = row["p50"] if row["p50"] is not None else row["point_forecast"]
             col.metric(
-                f"{h}-Month",
+                month_label,
                 _fmt_price(p50),
                 _delta_str(p50, last_actual),
             )
@@ -887,82 +901,91 @@ with tab5:
     st.caption("A plain-English guide to the data, the model, and what the numbers mean.")
     st.html("<br>")
 
-    col_a, col_b = st.columns(2)
+    # --- Data sources ---
+    st.markdown("#### Data sources")
+    st.html("""
+    <p>Prices are ingested monthly from two sources:</p>
+    <ul>
+      <li><strong>Arabica (KC=F)</strong> and <strong>Robusta (RM=F)</strong>
+          coffee prices, plus the <strong>US Dollar index (DXY)</strong> —
+          via <strong>FRED</strong> (Federal Reserve Economic Data), the St. Louis Fed's
+          free public database of economic and financial time series. No API key required.</li>
+      <li><strong>FX rates</strong> — Brazilian Real (BRL), Vietnamese Dong (VND),
+          Indonesian Rupiah (IDR) — via <strong>Alpha Vantage</strong>, a financial data
+          provider with a free tier. These currencies matter because Brazil, Vietnam, and
+          Indonesia are the world's three largest coffee producers: when their currencies
+          weaken against the dollar, local farmers receive less per bag sold, which affects
+          supply and ultimately global prices.</li>
+    </ul>
+    <p>Training data runs from 2014 to present (~136 monthly observations).
+    History before 2014 is excluded because VND and IDR series only start then.</p>
+    """)
 
-    with col_a:
-        st.markdown("#### Data sources")
-        st.html("""
-        <p>Prices are ingested monthly from two sources:</p>
-        <ul>
-          <li><strong>Arabica (KC=F)</strong> and <strong>Robusta (RM=F)</strong>
-              coffee prices, plus the <strong>US Dollar index (DXY)</strong> —
-              via <strong>FRED</strong> (Federal Reserve Economic Data), the St. Louis Fed's
-              free public database of economic and financial time series. No API key required.</li>
-          <li><strong>FX rates</strong> — Brazilian Real (BRL), Vietnamese Dong (VND),
-              Indonesian Rupiah (IDR) — via <strong>Alpha Vantage</strong>, a financial data
-              provider with a free tier. These currencies matter because Brazil, Vietnam, and
-              Indonesia are the world's three largest coffee producers: when their currencies
-              weaken against the dollar, local farmers receive less per bag sold, which affects
-              supply and ultimately global prices.</li>
-        </ul>
-        <p>Training data runs from 2014 to present (~136 monthly observations).
-        History before 2014 is excluded because VND and IDR series only start then.</p>
-        """)
+    st.html("<br>")
 
-        st.markdown("#### The VECM model")
-        st.html("""
-        <p>A <strong>Vector Error Correction Model (VECM)</strong> captures the
-        long-run cointegration between Arabica and Robusta — they tend to drift back
-        together when their price ratio gets too extreme.</p>
-        <p>Currency rates enter as <em>external drivers</em>: a weaker Brazilian Real
-        makes Brazilian growers produce more Arabica for the same local income, which
-        pushes global dollar prices down. The VECM produces a
-        <strong>point forecast</strong> for 1, 2, and 3 months ahead.</p>
-        """)
+    # --- Step 1: VECM ---
+    st.markdown("#### Step 1 — Point forecast (VECM)")
+    st.html("""
+    <p>A <strong>Vector Error Correction Model (VECM)</strong> captures the
+    long-run cointegration between Arabica and Robusta — they tend to drift back
+    together when their price ratio gets too extreme.</p>
+    <p>Currency rates enter as <em>external drivers</em>: a weaker Brazilian Real
+    makes Brazilian growers produce more Arabica for the same local income, which
+    pushes global dollar prices down. The VECM produces a
+    <strong>point forecast</strong> for 1, 2, and 3 months ahead.</p>
+    """)
 
-    with col_b:
-        st.markdown("#### Uncertainty — the GAMLSS layer")
-        st.html("""
-        <p>A second model (GAMLSS with a SHASH distribution) is fitted to the
-        VECM's historical forecast errors. This gives the <strong>probability
-        band</strong> around each point forecast — the p10 to p90 range you see
-        in the chart.</p>
-        <p>The band width depends on the current <strong>volatility regime</strong>
-        (Low / Medium / High), estimated from recent price swings. In high-volatility
-        periods the band widens; in calm periods it narrows.</p>
-        """)
+    st.html("<br>")
 
-        st.markdown("#### Known limitations")
-        st.html("""
-        <ul>
-          <li><strong>Cointegration rank hardcoded at r=1</strong> — confirmed by testing
-              (Engle-Granger p=0.009) but not re-tested on rolling windows. If the
-              Arabica/Robusta relationship structurally breaks, the model won't detect it.</li>
-          <li><strong>FX forecasts are naïve</strong> — currencies are held flat at
-              their last observed value. A big BRL move would not be captured for h=2, h=3.</li>
-          <li><strong>Lag order auto-selected but not bounded</strong> — AIC chose lag=1
-              on the current dataset. Shocks that play out over 3–4 months (droughts,
-              policy changes) may not be captured with a single lag.</li>
-          <li><strong>Linear, time-invariant coefficients</strong> — the model doesn't
-              auto-detect structural breaks like a major crop disease or policy shock.</li>
-          <li><strong>GAMLSS assumes well-behaved residuals</strong> — if the VECM is
-              misspecified, those errors carry through into the distribution model.
-              Residual ACF and ARCH tests have not been run end-to-end.</li>
-          <li><strong>Interval coverage ≈ 77% vs 80% target</strong> — bands are slightly
-              too tight out-of-sample. Expected given GAMLSS is fit on in-sample residuals.</li>
-          <li><strong>Training window limited to 2014+</strong> by VND/IDR availability.
-              Dropping those FX drivers would unlock 15 more years of data.</li>
-        </ul>
-        """)
+    # --- Step 2: GAMLSS ---
+    st.markdown("#### Step 2 — Uncertainty band (GAMLSS)")
+    st.html("""
+    <p>A second model (GAMLSS with a SHASH distribution) is fitted to the
+    VECM's historical forecast errors. This gives the <strong>probability
+    band</strong> around each point forecast — the p10 to p90 range you see
+    in the chart.</p>
+    <p>The band width depends on the current <strong>volatility regime</strong>
+    (Low / Medium / High), estimated from recent price swings. In high-volatility
+    periods the band widens; in calm periods it narrows.</p>
+    """)
 
+    st.html("<br>")
+
+    # --- Known limitations ---
+    st.markdown("#### Known limitations")
+    st.html("""
+    <ul style="line-height:1.9">
+      <li><strong>Cointegration rank hardcoded at r=1</strong> — confirmed by testing
+          (Engle-Granger p=0.009) but not re-tested on rolling windows. If the
+          Arabica/Robusta relationship structurally breaks, the model won't detect it.</li>
+      <li><strong>FX forecasts are naïve</strong> — currencies are held flat at
+          their last observed value. A big BRL move would not be captured for h=2, h=3.</li>
+      <li><strong>Lag order auto-selected but not bounded</strong> — AIC chose lag=1
+          on the current dataset. Shocks that play out over 3–4 months (droughts,
+          policy changes) may not be captured with a single lag.</li>
+      <li><strong>Linear, time-invariant coefficients</strong> — the model doesn't
+          auto-detect structural breaks like a major crop disease or policy shock.</li>
+      <li><strong>GAMLSS assumes well-behaved residuals</strong> — if the VECM is
+          misspecified, those errors carry through into the distribution model.
+          Residual ACF and ARCH tests have not been run end-to-end.</li>
+      <li><strong>Interval coverage ≈ 77% vs 80% target</strong> — bands are slightly
+          too tight out-of-sample. Expected given GAMLSS is fit on in-sample residuals.</li>
+      <li><strong>Training window limited to 2014+</strong> by VND/IDR availability.
+          Dropping those FX drivers would unlock 15 more years of data.</li>
+    </ul>
+    """)
+
+    st.html("<br>")
     st.divider()
+    st.html("<br>")
+
     st.markdown("#### About this project")
     st.html("""
     <p>A personal project applying rigorous statistical methods to a real market.
     The full pipeline — ingestion, VECM, GAMLSS, backtest, and this dashboard — reruns
     automatically on the 1st of each month via GitHub Actions, making every forecast
     publicly falsifiable.</p>
-    <p style="color:#8C6E52; font-size:0.8rem; margin-top:8px">
+    <p style="color:#8C6E52; font-size:0.8rem; margin-top:12px">
     Stack: Python · statsmodels VECM · R / GAMLSS · SQLite · Streamlit · Plotly ·
     GitHub Actions
     </p>
