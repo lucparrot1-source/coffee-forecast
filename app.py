@@ -833,10 +833,15 @@ with tab5:
         <p>Prices are ingested monthly from two sources:</p>
         <ul>
           <li><strong>Arabica (KC=F)</strong> and <strong>Robusta (RM=F)</strong>
-              coffee prices — via FRED</li>
+              coffee prices, plus the <strong>US Dollar index (DXY)</strong> —
+              via <strong>FRED</strong> (Federal Reserve Economic Data), the St. Louis Fed's
+              free public database of economic and financial time series. No API key required.</li>
           <li><strong>FX rates</strong> — Brazilian Real (BRL), Vietnamese Dong (VND),
-              Indonesian Rupiah (IDR) — via Alpha Vantage</li>
-          <li><strong>US Dollar index (DXY)</strong> — via FRED</li>
+              Indonesian Rupiah (IDR) — via <strong>Alpha Vantage</strong>, a financial data
+              provider with a free tier. These currencies matter because Brazil, Vietnam, and
+              Indonesia are the world's three largest coffee producers: when their currencies
+              weaken against the dollar, local farmers receive less per bag sold, which affects
+              supply and ultimately global prices.</li>
         </ul>
         <p>Training data runs from 2014 to present (~136 monthly observations).
         History before 2014 is excluded because VND and IDR series only start then.</p>
