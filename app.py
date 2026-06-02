@@ -362,17 +362,13 @@ with st.sidebar:
         st.caption("Last run: **no runs yet**")
     st.caption(f"Data through: **{data_through}**")
     st.caption("Reruns on the **1st** of each month")
+    st.markdown("[View source on GitHub](https://github.com/lucparrot1-source/coffee-forecast)")
     st.html("<hr>")
     st.markdown("**Model**")
     st.caption("VECM + GAMLSS hybrid")
     st.caption("Arabica KC=F (primary)")
     st.caption("Robusta RM=F (secondary)")
     st.caption("FX drivers: BRL · VND · IDR · DXY")
-    st.html("<hr>")
-    st.markdown("**About**")
-    st.caption("A personal project applying statistical methods to a real market I follow closely.")
-    st.html("<br>")
-    st.markdown("[View source on GitHub](https://github.com/lucparrot1-source/coffee-forecast)", unsafe_allow_html=False)
 
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -422,27 +418,39 @@ with tab1:
         # Hero metrics — current month actual + 3 forecast months
         cols = st.columns(4)
 
+        def _metric_card(col, label: str, value: str, delta: str, is_actual: bool) -> None:
+            bg = "#FFFFFF" if is_actual else "#FAF3EB"
+            if delta:
+                is_pos = delta.startswith("+")
+                arrow = "↑" if is_pos else "↓"
+                delta_color = "#2E7D32" if is_pos else "#C62828"
+                delta_html = f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.76rem;color:{delta_color};margin-top:4px">{arrow} {delta}</div>'
+            else:
+                delta_html = ""
+            col.html(f"""
+            <div style="background:{bg};border:1px solid #DDD0C0;border-radius:8px;padding:18px 20px">
+              <div style="font-family:'Inter',sans-serif;font-size:0.70rem;letter-spacing:0.09em;
+                          text-transform:uppercase;color:#1A1A1A;font-weight:700;margin-bottom:6px">{label}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:1.75rem;font-weight:600;
+                          color:#2C1A0E;letter-spacing:-0.02em">{value}</div>
+              {delta_html}
+            </div>
+            """)
+
         # Current month (last actual)
         if not price_hist.empty:
             last_row = price_hist.iloc[-1]
             prev_actual = float(price_hist["adj_close"].iloc[-2]) if len(price_hist) >= 2 else None
-            current_month_label = pd.to_datetime(last_row["date"]).strftime("%B").upper()
-            current_delta = _delta_str(float(last_row["adj_close"]), prev_actual).replace("vs last actual", "vs prior month") if prev_actual else ""
-            cols[0].metric(
-                f"{current_month_label} (actual)",
-                _fmt_price(float(last_row["adj_close"])),
-                current_delta,
-            )
+            current_month_label = f"{pd.to_datetime(last_row['date']).strftime('%B').upper()} · Actual"
+            raw_delta = _delta_str(float(last_row["adj_close"]), prev_actual).replace("vs last actual", "vs prior month") if prev_actual else ""
+            _metric_card(cols[0], current_month_label, _fmt_price(float(last_row["adj_close"])), raw_delta, is_actual=True)
 
         for col, (_, row) in zip(cols[1:], kc.iterrows()):
             target = pd.to_datetime(row["target_date"])
-            month_label = f"{target.strftime('%B').upper()} (forecast)"
+            month_label = f"{target.strftime('%B').upper()} · Forecast"
             p50 = row["p50"] if row["p50"] is not None else row["point_forecast"]
-            col.metric(
-                month_label,
-                _fmt_price(p50),
-                _delta_str(p50, last_actual),
-            )
+            raw_delta = _delta_str(p50, last_actual)
+            _metric_card(col, month_label, _fmt_price(p50), raw_delta, is_actual=False)
 
         st.html("<br>")
 
