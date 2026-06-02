@@ -854,7 +854,12 @@ with tab4:
         if today >= spread["date"].min() and today <= spread["date"].max():
             fig6.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
         layout6 = _base_layout(300, "Arabica vs Robusta — Spread Z-Score")
-        layout6["yaxis"]["title"] = dict(text="Z-Score", font=dict(family=_MONO, size=10, color=_TXT))
+        layout6["yaxis"]["title"] = dict(
+            text="Z-Score<br><sub>(standard deviations from average ratio)</sub>",
+            font=dict(family=_MONO, size=10, color=_TXT)
+        )
+        layout6["yaxis"]["showgrid"] = False
+        layout6["yaxis"]["gridcolor"] = "rgba(0,0,0,0)"
         fig6.update_layout(**layout6)
         st.plotly_chart(fig6, use_container_width=True)
         st.caption(
