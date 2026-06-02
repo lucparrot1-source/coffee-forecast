@@ -588,8 +588,8 @@ with tab2:
         # Actuals vs h=1 forecasts
         st.html("""
         <p style="font-size:0.95rem; color:#1A1A1A; margin:0 0 16px 0; line-height:1.7;">
-          Did the model track the actual price? The <strong>amber line</strong> is what the model
-          predicted one month in advance; the <strong>tan line</strong> is what actually happened.
+          Did the model track the actual price? The <strong style="color:#2563EB">blue line</strong> is what actually happened;
+          the <strong style="color:#DC2626">red line</strong> is what the model predicted one month in advance.
           The shaded band is the <strong>80% confidence interval</strong> — the model expected
           the price to land inside it 80% of the time.
         </p>
@@ -610,12 +610,12 @@ with tab2:
         fig2.add_trace(go.Scatter(
             x=bt1["target_date"], y=bt1["actual"],
             mode="lines", name="Actual price",
-            line=dict(color=_HIST, width=2),
+            line=dict(color="#2563EB", width=2),
         ))
         fig2.add_trace(go.Scatter(
             x=bt1["target_date"], y=bt1["point_forecast"],
             mode="lines", name="Forecast (1-month ahead)",
-            line=dict(color=_ACCENT, width=2),
+            line=dict(color="#DC2626", width=2),
         ))
         # Mark today
         today = pd.Timestamp.today()
