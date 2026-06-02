@@ -415,22 +415,183 @@ with tab1:
         )
         st.html("<br>")
 
-        # Hero metrics — actual on its own row, forecasts below
+        # Hero metrics — full custom HTML block
+        # Build actual card data
+        act_month, act_price_str, act_delta_str, act_delta_color = "—", "—", "", "#8C6E52"
         if not price_hist.empty:
             last_row = price_hist.iloc[-1]
             prev_actual = float(price_hist["adj_close"].iloc[-2]) if len(price_hist) >= 2 else None
-            current_month_label = f"Actual: {pd.to_datetime(last_row['date']).strftime('%B')}"
-            current_delta = _delta_str(float(last_row["adj_close"]), prev_actual).replace("vs last actual", "vs prior month") if prev_actual else ""
-            act_col, _, _ = st.columns([1, 1, 1])
-            act_col.metric(current_month_label, _fmt_price(float(last_row["adj_close"])), current_delta)
+            act_price = float(last_row["adj_close"])
+            act_month = pd.to_datetime(last_row["date"]).strftime("%B %Y")
+            act_price_str = _fmt_price(act_price)
+            if prev_actual is not None:
+                d = act_price - prev_actual
+                act_delta_str = (f"+${d:.2f}" if d >= 0 else f"−${abs(d):.2f}") + " vs prior month"
+                act_delta_color = "#2E7D32" if d >= 0 else "#C62828"
 
-        st.html('<p style="font-size:0.72rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#8C6E52;margin:18px 0 4px 0">Forecast</p>')
-
-        fc_cols = st.columns(3)
-        for col, (_, row) in zip(fc_cols, kc.iterrows()):
+        # Build forecast cards data
+        fc_cards = []
+        for _, row in kc.iterrows():
             target = pd.to_datetime(row["target_date"])
             p50 = row["p50"] if row["p50"] is not None else row["point_forecast"]
-            col.metric(target.strftime("%B"), _fmt_price(p50), _delta_str(p50, last_actual))
+            d = (p50 - last_actual) if (p50 is not None and last_actual is not None) else None
+            pct = f"{d / last_actual * 100:+.1f}%" if (d is not None and last_actual) else ""
+            delta_str = ((f"+${d:.2f}" if d >= 0 else f"−${abs(d):.2f}") + " vs actual") if d is not None else "—"
+            delta_color = "#2E7D32" if (d is not None and d >= 0) else "#C62828"
+            arrow = "▲" if (d is not None and d >= 0) else "▼"
+            fc_cards.append({
+                "month": target.strftime("%B"),
+                "price": _fmt_price(p50),
+                "delta": delta_str,
+                "pct": pct,
+                "color": delta_color,
+                "arrow": arrow,
+            })
+
+        def _fc_card_html(c: dict) -> str:
+            return f"""
+            <div class="fc-card">
+              <div class="fc-month">{c['month']}</div>
+              <div class="fc-price">{c['price']}</div>
+              <div class="fc-delta" style="color:{c['color']}">
+                {c['arrow']} {c['delta']}
+                {"<span class='fc-pct'>" + c['pct'] + "</span>" if c['pct'] else ""}
+              </div>
+            </div>"""
+
+        card_htmls = [_fc_card_html(c) for c in fc_cards]
+        connector_html = '<div class="fc-arrow">&#8594;</div>'.join(card_htmls)
+
+        act_delta_block = (
+            f'<span class="act-delta" style="color:{act_delta_color}">{act_delta_str}</span>'
+            if act_delta_str else ""
+        )
+
+        st.html(f"""
+        <link href="https://fonts.googleapis.com/css2?family=Lora:wght@600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+          .act-card {{
+            background: #FFFFFF;
+            border: 1px solid #DDD0C0;
+            border-left: 4px solid #B05C1A;
+            border-radius: 8px;
+            padding: 20px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+          }}
+          .act-left {{ display: flex; flex-direction: column; gap: 4px; }}
+          .act-label {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #B05C1A;
+          }}
+          .act-price {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: #2C1A0E;
+            letter-spacing: -0.02em;
+            line-height: 1;
+          }}
+          .act-delta {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 400;
+          }}
+          .forecast-divider {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 22px 0 16px 0;
+          }}
+          .forecast-divider-label {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #8C6E52;
+            white-space: nowrap;
+          }}
+          .forecast-divider-line {{
+            flex: 1;
+            height: 1px;
+            background: #DDD0C0;
+          }}
+          .fc-row {{
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+          }}
+          .fc-card {{
+            flex: 1;
+            background: #FDFAF6;
+            border: 1px solid #DDD0C0;
+            border-radius: 8px;
+            padding: 18px 20px;
+          }}
+          .fc-month {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #8C6E52;
+            margin-bottom: 6px;
+          }}
+          .fc-price {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.65rem;
+            font-weight: 600;
+            color: #2C1A0E;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            margin-bottom: 6px;
+          }}
+          .fc-delta {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.72rem;
+          }}
+          .fc-pct {{
+            margin-left: 6px;
+            font-size: 0.68rem;
+            opacity: 0.7;
+          }}
+          .fc-arrow {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            flex-shrink: 0;
+            color: #B05C1A;
+            font-size: 1.1rem;
+            opacity: 0.5;
+          }}
+        </style>
+
+        <div class="act-card">
+          <div class="act-left">
+            <span class="act-label">Actual &middot; {act_month}</span>
+            <span class="act-price">{act_price_str}</span>
+          </div>
+          {act_delta_block}
+        </div>
+
+        <div class="forecast-divider">
+          <div class="forecast-divider-line"></div>
+          <span class="forecast-divider-label">Forecast</span>
+          <div class="forecast-divider-line"></div>
+        </div>
+
+        <div class="fc-row">
+          {connector_html}
+        </div>
+        """)
 
         st.html("<br>")
 
