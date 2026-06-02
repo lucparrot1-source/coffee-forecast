@@ -927,73 +927,244 @@ with tab3:
 # TAB 4 · SPREAD SIGNAL
 # ─────────────────────────────────────────────────────────────────────────────
 with tab4:
-    st.markdown("## Arabica / Robusta Spread Signal")
-    st.caption("Does Arabica look cheap or expensive relative to Robusta right now?")
-    st.html("<br>")
-
     spread = load_spread_signals(months=60)
 
     if spread.empty:
+        st.markdown("## Arabica / Robusta Spread Signal")
         _no_data("No spread signal data yet. Run the spread model first.")
     else:
         cur = spread.iloc[-1]
         cur_z   = float(cur["z_score"])
         cur_sig = int(cur["signal"]) if pd.notna(cur["signal"]) else 0
         half_life = cur["half_life"]
+        hl_str = f"{half_life:.1f} months" if pd.notna(half_life) else "—"
 
         if cur_sig == -1:
             sig_label = "Buy Arabica"
-            sig_class = "buy-arabica"
-            sig_desc = (
-                "Arabica is historically <strong>cheap</strong> vs Robusta. "
-                "The spread tends to mean-revert upward — a potential long Arabica edge."
-            )
+            sig_color = "#2E7D32"
+            sig_bg    = "#EEF6EE"
+            sig_border= "#A5D6A7"
+            sig_desc  = "Arabica is historically <strong>cheap</strong> vs Robusta. The spread tends to mean-revert upward — a statistical edge in favour of Arabica."
         elif cur_sig == 1:
             sig_label = "Buy Robusta"
-            sig_class = "buy-robusta"
-            sig_desc = (
-                "Arabica is historically <strong>expensive</strong> vs Robusta. "
-                "The spread tends to mean-revert downward — a potential long Robusta edge."
-            )
+            sig_color = "#C62828"
+            sig_bg    = "#FEF1F1"
+            sig_border= "#FFCDD2"
+            sig_desc  = "Arabica is historically <strong>expensive</strong> vs Robusta. The spread tends to mean-revert downward — a statistical edge in favour of Robusta."
         else:
             sig_label = "Neutral"
-            sig_class = "neutral"
-            sig_desc = (
-                "No strong edge detected. The Arabica/Robusta price ratio is within its "
-                "normal historical range — no mean-reversion trade indicated."
-            )
+            sig_color = "#8C6E52"
+            sig_bg    = "#FBF5EE"
+            sig_border= "#DDD0C0"
+            sig_desc  = "No strong edge detected. The Arabica/Robusta price ratio is within its normal historical range — no mean-reversion trade indicated."
 
-        col_sig, col_detail = st.columns([1, 2])
-        with col_sig:
-            hl_str = f"{half_life:.1f} months" if pd.notna(half_life) else "—"
-            st.html(f"""
-            <div class="signal-card">
-                <div class="sig-label">Current Signal</div>
-                <div class="sig-value {sig_class}">{sig_label}</div>
-                <div class="sig-sub">z = {cur_z:+.2f} · half-life ≈ {hl_str}</div>
+        # Gauge: map z to 0–100% on a -4 to +4 scale
+        gauge_pct = min(max((cur_z + 4) / 8 * 100, 2), 98)
+        # Gauge marker color matches signal
+        gauge_dot_color = sig_color
+
+        st.html(f"""
+        <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          .spread-intro {{
+            font-family: 'Lora', serif;
+            font-size: 1.05rem;
+            color: #4A2C1A;
+            line-height: 1.65;
+            margin: 0 0 24px 0;
+          }}
+          .signal-hero {{
+            border: 1px solid {sig_border};
+            border-left: 4px solid {sig_color};
+            border-radius: 10px;
+            background: {sig_bg};
+            padding: 28px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }}
+          .signal-top {{
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 32px;
+            flex-wrap: wrap;
+          }}
+          .signal-left {{ flex: 1; min-width: 200px; }}
+          .signal-eyebrow {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #8C6E52;
+            margin-bottom: 8px;
+          }}
+          .signal-name {{
+            font-family: 'Lora', serif;
+            font-size: 2.4rem;
+            font-weight: 600;
+            color: {sig_color};
+            line-height: 1;
+            margin-bottom: 10px;
+          }}
+          .signal-meta {{
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.82rem;
+            color: #8C6E52;
+          }}
+          .signal-desc {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.93rem;
+            color: #3D2010;
+            line-height: 1.6;
+            padding-top: 4px;
+            border-top: 1px solid {sig_border};
+          }}
+          .gauge-wrap {{ flex: 1; min-width: 180px; padding-top: 8px; }}
+          .gauge-labels {{
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #8C6E52;
+            margin-bottom: 6px;
+          }}
+          .gauge-track {{
+            position: relative;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right,
+              #2E7D32 0%, #2E7D32 25%,
+              #DDD0C0 25%, #DDD0C0 75%,
+              #C62828 75%, #C62828 100%);
+            margin-bottom: 6px;
+          }}
+          .gauge-marker {{
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: {gauge_dot_color};
+            border: 3px solid #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+            left: {gauge_pct:.1f}%;
+          }}
+          .gauge-ticks {{
+            display: flex;
+            justify-content: space-between;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.60rem;
+            color: #B0A090;
+          }}
+        </style>
+
+        <p class="spread-intro">
+          Does Arabica look <strong>cheap or expensive</strong> relative to Robusta right now?
+          These two coffees move together over time — but when the ratio stretches too far,
+          it historically snaps back. This page tracks that signal.
+        </p>
+
+        <div class="signal-hero">
+          <div class="signal-top">
+            <div class="signal-left">
+              <div class="signal-eyebrow">Current Signal</div>
+              <div class="signal-name">{sig_label}</div>
+              <div class="signal-meta">z = {cur_z:+.2f} &nbsp;·&nbsp; half-life ≈ {hl_str}</div>
             </div>
-            """)
+            <div class="gauge-wrap">
+              <div class="gauge-labels">
+                <span>Arabica cheap</span>
+                <span>Arabica expensive</span>
+              </div>
+              <div class="gauge-track">
+                <div class="gauge-marker"></div>
+              </div>
+              <div class="gauge-ticks">
+                <span>−4</span><span>−2</span><span>0</span><span>+2</span><span>+4</span>
+              </div>
+            </div>
+          </div>
+          <div class="signal-desc">{sig_desc}</div>
+        </div>
+        """)
 
-        with col_detail:
-            st.markdown("#### What does this mean?")
-            st.html(f"""
-            <p>{sig_desc}</p>
-            <p>The chart plots the <strong>log price ratio of Arabica to Robusta</strong>,
-            standardised into a z-score. In plain terms: <strong>when the line is high,
-            Arabica is expensive relative to Robusta</strong> — and vice versa. The line
-            sitting at zero means the ratio is at its historical average.</p>
-            <p>These two coffees are cointegrated (p&nbsp;=&nbsp;0.009) — when the ratio gets
-            stretched, it historically snaps back. The signal exploits that:</p>
-            <ul style="margin-top:4px; margin-bottom:8px;">
-              <li><strong>z &gt; +2</strong> → Arabica is unusually expensive
-              → bet on it <strong>cheapening back</strong> (favour Robusta)</li>
-              <li><strong>z &lt; −2</strong> → Arabica is unusually cheap
-              → bet on it <strong>recovering</strong> (favour Arabica)</li>
-              <li><strong>|z| &lt; 0.5</strong> → ratio is back to normal → signal switches off</li>
-            </ul>
-            <p><strong>Half-life ({hl_str})</strong> is how long the snap-back typically takes.
-            A shorter half-life means a faster reversion.</p>
-            """)
+        st.html("<br>")
+
+        # Explanation grid
+        st.html(f"""
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+          .explain-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 8px;
+          }}
+          .explain-box {{
+            background: #FFFFFF;
+            border: 1px solid #DDD0C0;
+            border-radius: 8px;
+            padding: 20px 22px;
+          }}
+          .explain-title {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.70rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #B05C1A;
+            margin-bottom: 10px;
+          }}
+          .explain-body {{
+            font-family: 'Inter', sans-serif;
+            font-size: 0.90rem;
+            color: #3D2010;
+            line-height: 1.65;
+          }}
+          .explain-body ul {{
+            margin: 8px 0 0 0;
+            padding-left: 18px;
+          }}
+          .explain-body li {{
+            margin-bottom: 6px;
+          }}
+          .tag-red   {{ color: #C62828; font-weight: 600; }}
+          .tag-green {{ color: #2E7D32; font-weight: 600; }}
+          .tag-amber {{ color: #B05C1A; font-weight: 600; }}
+        </style>
+        <div class="explain-grid">
+          <div class="explain-box">
+            <div class="explain-title">How the signal works</div>
+            <div class="explain-body">
+              The chart below plots the <strong>log price ratio of Arabica to Robusta</strong>,
+              standardised as a z-score. Zero = historical average. A high line means
+              Arabica is expensive relative to Robusta; a low line means it is cheap.
+              <ul>
+                <li><span class="tag-red">z &gt; +2</span> → Arabica unusually expensive → favour Robusta</li>
+                <li><span class="tag-green">z &lt; −2</span> → Arabica unusually cheap → favour Arabica</li>
+                <li><span class="tag-amber">|z| &lt; 0.5</span> → ratio back to normal → no signal</li>
+              </ul>
+            </div>
+          </div>
+          <div class="explain-box">
+            <div class="explain-title">Why it works</div>
+            <div class="explain-body">
+              Arabica and Robusta are statistically <strong>cointegrated</strong>
+              (Engle-Granger p&nbsp;=&nbsp;0.009). They can drift apart, but not forever —
+              eventually growers, roasters, and traders arbitrage the gap back.
+              The <strong>half-life ({hl_str})</strong> tells you how long a typical
+              snap-back takes. A shorter half-life means faster reversion and
+              a tighter trading window.
+            </div>
+          </div>
+        </div>
+        """)
 
         st.html("<br>")
 
@@ -1033,14 +1204,13 @@ with tab4:
         fig6.update_layout(**layout6)
         st.plotly_chart(fig6, use_container_width=True)
         st.html(
-            '<p style="font-size:13px; color:#000000; margin-top:-8px; line-height:1.6;">'
+            '<p style="font-family:\'Inter\',sans-serif; font-size:0.88rem; color:#4A2C1A;'
+            ' margin-top:-4px; line-height:1.7;">'
             "<strong>Reading the chart:</strong> "
             "Line high = Arabica expensive vs Robusta. Line low = Arabica cheap. "
-            "<span style='color:#C62828;'>Red zone</span> (above +2): Arabica overpriced "
-            "— bet on it reverting down. "
-            "<span style='color:#2E7D32;'>Green zone</span> (below −2): Arabica underpriced "
-            "— bet on it recovering. "
-            "Inner dotted lines (±0.5): signal switches off once the ratio normalises.</p>"
+            "<span style='color:#C62828; font-weight:600;'>Red zone</span> (above +2): Arabica overpriced — favour Robusta. "
+            "<span style='color:#2E7D32; font-weight:600;'>Green zone</span> (below −2): Arabica underpriced — favour Arabica. "
+            "Inner dotted lines (±0.5) mark where the signal switches off once the ratio normalises.</p>"
         )
 
 
