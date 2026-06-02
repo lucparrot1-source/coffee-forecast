@@ -865,9 +865,14 @@ with tab4:
         fig6.update_layout(**layout6)
         st.plotly_chart(fig6, use_container_width=True)
         st.html(
-            '<p style="font-size:13px; color:#000000; margin-top:-8px;">'
-            "Red zone = Arabica expensive (z &gt; 2) · Green zone = Arabica cheap (z &lt; −2) "
-            "· Dotted lines = exit bands (±0.5)</p>"
+            '<p style="font-size:13px; color:#000000; margin-top:-8px; line-height:1.6;">'
+            "<strong>Reading the chart:</strong> "
+            "The <span style='color:#C62828;'>red zone</span> (above +2) and "
+            "<span style='color:#2E7D32;'>green zone</span> (below −2) mark where "
+            "a signal fires — the spread is extreme enough to bet on a snap-back. "
+            "The inner dotted lines (±0.5) are where a signal switches off — "
+            "the spread has returned close enough to normal. "
+            "Between ±0.5 and ±2, the spread is stretched but not enough to act on.</p>"
         )
 
 
