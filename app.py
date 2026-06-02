@@ -1237,19 +1237,20 @@ with tab4:
         st.html("<br>")
         st.html(
             '<p style="font-family:\'Inter\',sans-serif; font-size:0.70rem; font-weight:700;'
-            ' letter-spacing:0.1em; text-transform:uppercase; color:#8C6E52; margin:0 0 4px 0;">'
+            ' letter-spacing:0.1em; text-transform:uppercase; color:#8C6E52; margin:0 0 8px 0;">'
             "Long-Run View</p>"
-            '<p style="font-family:\'Inter\',sans-serif; font-size:0.88rem; color:#4A2C1A;'
+            '<p style="font-family:\'Lora\',serif; font-size:1.05rem; color:#4A2C1A;'
             ' line-height:1.65; margin:0 0 12px 0;">'
-            "The same z-score over the full history. Useful for seeing how the current reading "
+            "The same z-score back to 2006. Useful for seeing how the current reading "
             "compares to previous extremes — the 2014–16 Arabica premium, the post-COVID convergence, "
             "and the 2022–25 divergence as Robusta supply tightened.</p>"
         )
 
         if not spread_all.empty:
+            spread_long = spread_all[spread_all["date"] >= pd.Timestamp("2006-01-01")]
             fig7 = go.Figure()
-            z_max = spread_all["z_score"].max()
-            z_min = spread_all["z_score"].min()
+            z_max = spread_long["z_score"].max()
+            z_min = spread_long["z_score"].min()
             fig7.add_hrect(y0=2, y1=z_max + 0.5,
                            fillcolor="rgba(198,40,40,0.06)", line_width=0)
             fig7.add_hrect(y0=z_min - 0.5, y1=-2,
@@ -1259,13 +1260,13 @@ with tab4:
             fig7.add_hline(y=0.5,  line_dash="dot", line_color=_HIST,  line_width=1)
             fig7.add_hline(y=-0.5, line_dash="dot", line_color=_HIST,  line_width=1)
             fig7.add_trace(go.Scatter(
-                x=spread_all["date"], y=spread_all["z_score"],
+                x=spread_long["date"], y=spread_long["z_score"],
                 mode="lines", name="Spread z-score",
                 line=dict(color=_ACCENT, width=1.5),
                 fill="tozeroy", fillcolor="rgba(176,92,26,0.07)",
             ))
             fig7.add_annotation(
-                x=spread_all["date"].iloc[-1], y=cur_z,
+                x=spread_long["date"].iloc[-1], y=cur_z,
                 text=f"  Now: {cur_z:+.2f}",
                 showarrow=True, arrowhead=0, arrowwidth=1.5, arrowcolor=_ACCENT,
                 ax=40, ay=-25,
