@@ -928,6 +928,7 @@ with tab3:
 # ─────────────────────────────────────────────────────────────────────────────
 with tab4:
     spread = load_spread_signals(months=60)
+    spread_all = load_spread_signals(months=9999)  # full history for long-run chart
 
     if spread.empty:
         st.markdown("## Arabica / Robusta Spread Signal")
@@ -1231,6 +1232,55 @@ with tab4:
             "<span style='color:#2E7D32; font-weight:600;'>Green zone</span> (below −2): Arabica underpriced — favour Arabica. "
             "Inner dotted lines (±0.5) mark where the signal switches off once the ratio normalises.</p>"
         )
+
+        # ── Long-run chart ────────────────────────────────────────────────────
+        st.html("<br>")
+        st.html(
+            '<p style="font-family:\'Inter\',sans-serif; font-size:0.70rem; font-weight:700;'
+            ' letter-spacing:0.1em; text-transform:uppercase; color:#8C6E52; margin:0 0 4px 0;">'
+            "Long-Run View</p>"
+            '<p style="font-family:\'Inter\',sans-serif; font-size:0.88rem; color:#4A2C1A;'
+            ' line-height:1.65; margin:0 0 12px 0;">'
+            "The same z-score over the full history. Useful for seeing how the current reading "
+            "compares to previous extremes — the 2014–16 Arabica premium, the post-COVID convergence, "
+            "and the 2022–25 divergence as Robusta supply tightened.</p>"
+        )
+
+        if not spread_all.empty:
+            fig7 = go.Figure()
+            z_max = spread_all["z_score"].max()
+            z_min = spread_all["z_score"].min()
+            fig7.add_hrect(y0=2, y1=z_max + 0.5,
+                           fillcolor="rgba(198,40,40,0.06)", line_width=0)
+            fig7.add_hrect(y0=z_min - 0.5, y1=-2,
+                           fillcolor="rgba(46,125,50,0.06)", line_width=0)
+            fig7.add_hline(y=2,    line_dash="dot", line_color=_RED,   line_width=1)
+            fig7.add_hline(y=-2,   line_dash="dot", line_color=_GREEN, line_width=1)
+            fig7.add_hline(y=0.5,  line_dash="dot", line_color=_HIST,  line_width=1)
+            fig7.add_hline(y=-0.5, line_dash="dot", line_color=_HIST,  line_width=1)
+            fig7.add_trace(go.Scatter(
+                x=spread_all["date"], y=spread_all["z_score"],
+                mode="lines", name="Spread z-score",
+                line=dict(color=_ACCENT, width=1.5),
+                fill="tozeroy", fillcolor="rgba(176,92,26,0.07)",
+            ))
+            fig7.add_annotation(
+                x=spread_all["date"].iloc[-1], y=cur_z,
+                text=f"  Now: {cur_z:+.2f}",
+                showarrow=True, arrowhead=0, arrowwidth=1.5, arrowcolor=_ACCENT,
+                ax=40, ay=-25,
+                font=dict(family=_MONO, size=13, color=_ACCENT, weight=700),
+            )
+            layout7 = _base_layout(340, "Arabica vs Robusta — Spread Z-Score (Full History)")
+            layout7["yaxis"]["title"] = dict(
+                text="Z-Score",
+                font=dict(family=_MONO, size=12, color="#000000", weight=700),
+            )
+            layout7["yaxis"]["dtick"] = 1
+            layout7["yaxis"]["showgrid"] = True
+            layout7["yaxis"]["gridcolor"] = "rgba(0,0,0,0.06)"
+            fig7.update_layout(**layout7)
+            st.plotly_chart(fig7, use_container_width=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
