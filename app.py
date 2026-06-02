@@ -182,7 +182,7 @@ def _base_layout(height: int = 360, title: str | None = None) -> dict:
         margin=dict(l=0, r=0, t=36 if title else 8, b=0),
         xaxis=dict(showgrid=False, zeroline=False, linecolor=_GRID,
                    tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
-        yaxis=dict(showgrid=True, gridcolor=_GRID, zeroline=False, linecolor=_GRID,
+        yaxis=dict(showgrid=False, zeroline=False, linecolor=_GRID,
                    tickfont=dict(family=_MONO, size=10, color=_TXT, weight=700)),
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11, color=_TXT),
                     orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
@@ -801,6 +801,7 @@ with tab4:
             font=dict(family=_MONO, size=10, color=_ACCENT),
         )
         layout6 = _base_layout(300, "Arabica vs Robusta — Spread Z-Score")
+        layout6["yaxis"]["title"] = dict(text="Z-Score", font=dict(family=_MONO, size=10, color=_TXT))
         fig6.update_layout(**layout6)
         st.plotly_chart(fig6, use_container_width=True)
         st.caption(
