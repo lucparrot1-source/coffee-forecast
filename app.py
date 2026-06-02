@@ -813,18 +813,21 @@ with tab4:
             st.markdown("#### What does this mean?")
             st.html(f"""
             <p>{sig_desc}</p>
-            <p>The signal tracks the <strong>price ratio</strong> between Arabica and Robusta
-            vs its long-run average. When the ratio drifts too far, it historically pulls back
-            — a <em>mean-reversion</em> pattern confirmed by cointegration testing (p&nbsp;=&nbsp;0.009).</p>
-            <p>The <strong>z-score</strong> measures how far the ratio is from its historical
-            average, in units of standard deviations. A z-score of 0 means perfectly normal;
-            +2 means Arabica is unusually expensive vs Robusta; −2 means unusually cheap.</p>
-            <p><strong>Entry at |z| &gt; 2.0</strong> — a signal only fires when the ratio is more
-            than 2 standard deviations from normal, which historically happens ~5% of the time
-            and tends to revert. <strong>Exit at |z| &lt; 0.5</strong> — the trade closes once the
-            ratio returns close to its average, rather than waiting for a full reversal which may
-            never come. <strong>Half-life ({hl_str})</strong> is how long mean-reversion
-            typically takes — a shorter half-life means a faster snap-back.</p>
+            <p>The chart plots the <strong>log price ratio of Arabica to Robusta</strong>,
+            standardised into a z-score. In plain terms: <strong>when the line is high,
+            Arabica is expensive relative to Robusta</strong> — and vice versa. The line
+            sitting at zero means the ratio is at its historical average.</p>
+            <p>These two coffees are cointegrated (p&nbsp;=&nbsp;0.009) — when the ratio gets
+            stretched, it historically snaps back. The signal exploits that:</p>
+            <ul style="margin-top:4px; margin-bottom:8px;">
+              <li><strong>z &gt; +2</strong> → Arabica is unusually expensive
+              → bet on it <strong>cheapening back</strong> (favour Robusta)</li>
+              <li><strong>z &lt; −2</strong> → Arabica is unusually cheap
+              → bet on it <strong>recovering</strong> (favour Arabica)</li>
+              <li><strong>|z| &lt; 0.5</strong> → ratio is back to normal → signal switches off</li>
+            </ul>
+            <p><strong>Half-life ({hl_str})</strong> is how long the snap-back typically takes.
+            A shorter half-life means a faster reversion.</p>
             """)
 
         st.html("<br>")
@@ -867,12 +870,12 @@ with tab4:
         st.html(
             '<p style="font-size:13px; color:#000000; margin-top:-8px; line-height:1.6;">'
             "<strong>Reading the chart:</strong> "
-            "The <span style='color:#C62828;'>red zone</span> (above +2) and "
-            "<span style='color:#2E7D32;'>green zone</span> (below −2) mark where "
-            "a signal fires — the spread is extreme enough to bet on a snap-back. "
-            "The inner dotted lines (±0.5) are where a signal switches off — "
-            "the spread has returned close enough to normal. "
-            "Between ±0.5 and ±2, the spread is stretched but not enough to act on.</p>"
+            "Line high = Arabica expensive vs Robusta. Line low = Arabica cheap. "
+            "<span style='color:#C62828;'>Red zone</span> (above +2): Arabica overpriced "
+            "— bet on it reverting down. "
+            "<span style='color:#2E7D32;'>Green zone</span> (below −2): Arabica underpriced "
+            "— bet on it recovering. "
+            "Inner dotted lines (±0.5): signal switches off once the ratio normalises.</p>"
         )
 
 
