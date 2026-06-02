@@ -774,8 +774,15 @@ with tab4:
             <p>The signal tracks the <strong>price ratio</strong> between Arabica and Robusta
             vs its long-run average. When the ratio drifts too far, it historically pulls back
             — a <em>mean-reversion</em> pattern confirmed by cointegration testing (p&nbsp;=&nbsp;0.009).</p>
-            <p>Entry: <code>|z| &gt; 2.0</code> &nbsp;·&nbsp; Exit: <code>|z| &lt; 0.5</code>
-            &nbsp;·&nbsp; Half-life: <strong>{hl_str}</strong></p>
+            <p>The <strong>z-score</strong> measures how far the ratio is from its historical
+            average, in units of standard deviations. A z-score of 0 means perfectly normal;
+            +2 means Arabica is unusually expensive vs Robusta; −2 means unusually cheap.</p>
+            <p><strong>Entry at |z| &gt; 2.0</strong> — a signal only fires when the ratio is more
+            than 2 standard deviations from normal, which historically happens ~5% of the time
+            and tends to revert. <strong>Exit at |z| &lt; 0.5</strong> — the trade closes once the
+            ratio returns close to its average, rather than waiting for a full reversal which may
+            never come. <strong>Half-life ({hl_str})</strong> is how long mean-reversion
+            typically takes — a shorter half-life means a faster snap-back.</p>
             """)
 
         st.html("<br>")
