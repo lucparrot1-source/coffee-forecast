@@ -480,8 +480,17 @@ with tab1:
         ))
 
         if not price_hist.empty:
-            today_str = price_hist["date"].iloc[-1].strftime("%Y-%m-%d")
-            fig.add_vline(x=today_str, line_dash="dot", line_color=_HIST, line_width=1)
+            last_data_str = price_hist["date"].iloc[-1].strftime("%Y-%m-%d")
+            fig.add_vline(x=last_data_str, line_dash="dot", line_color=_HIST, line_width=1)
+
+        # Mark today's date if it's in the forecast period
+        today = pd.Timestamp.today()
+        if fc_dates_list and today < fc_dates_list[-1]:
+            fig.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
+            fig.add_annotation(x=today, yref="paper", y=-0.08,
+                              text="TODAY", showarrow=False,
+                              font=dict(family=_MONO, size=8, color="#E74C3C"),
+                              xanchor="center", yshift=-5)
 
         # "FORECAST PERIOD →" label centred in the forecast region
         if fc_dates_list and len(fc_dates_list) >= 2:
@@ -608,6 +617,14 @@ with tab2:
             mode="lines", name="Forecast (1-month ahead)",
             line=dict(color=_ACCENT, width=2),
         ))
+        # Mark today
+        today = pd.Timestamp.today()
+        if not bt1.empty and today >= bt1["target_date"].min() and today <= bt1["target_date"].max():
+            fig2.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
+            fig2.add_annotation(x=today, yref="paper", y=-0.08,
+                               text="TODAY", showarrow=False,
+                               font=dict(family=_MONO, size=8, color="#E74C3C"),
+                               xanchor="center", yshift=-5)
         fig2.update_layout(**_chart_layout(360, "Actual vs Forecast — 1-Month Ahead (KC=F)", "USD / lb"))
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -631,6 +648,14 @@ with tab2:
                 line=dict(color=_ACCENT, width=2),
                 showlegend=False,
             ))
+        # Mark today
+        today = pd.Timestamp.today()
+        if not sub1.empty and today >= sub1["target_date"].min() and today <= sub1["target_date"].max():
+            fig3.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
+            fig3.add_annotation(x=today, yref="paper", y=-0.08,
+                               text="TODAY", showarrow=False,
+                               font=dict(family=_MONO, size=8, color="#E74C3C"),
+                               xanchor="center", yshift=-5)
         lay3 = _chart_layout(260, "1-Month Forecast Error — 2024 to Present", "Error (USD / lb)")
         lay3["margin"]["b"] = 16  # no legend, so reclaim that space
         fig3.update_layout(**lay3)
@@ -687,6 +712,10 @@ with tab3:
                            line_color=_HIST, line_width=1,
                            annotation_text="avg",
                            annotation_font=dict(family=_MONO, size=9))
+            # Mark today
+            today = pd.Timestamp.today()
+            if today >= acc1["target_date"].min() and today <= acc1["target_date"].max():
+                fig4.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
         fig4.update_layout(**_base_layout(220, "Monthly MAE — h=1 Forecasts (USD/lb)"))
         st.plotly_chart(fig4, use_container_width=True)
 
@@ -704,6 +733,10 @@ with tab3:
             fig5.add_hline(y=80, line_dash="dash", line_color=_HIST, line_width=1,
                            annotation_text="80% target",
                            annotation_font=dict(family=_MONO, size=9))
+            # Mark today
+            today = pd.Timestamp.today()
+            if today >= cov_dates.min() and today <= cov_dates.max():
+                fig5.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
             fig5.update_layout(**_base_layout(200, "Monthly 80% Interval Coverage (%)"))
             st.plotly_chart(fig5, use_container_width=True)
 
@@ -816,6 +849,10 @@ with tab4:
             text=f"  Now: {cur_z:+.2f}", showarrow=False,
             font=dict(family=_MONO, size=10, color=_ACCENT),
         )
+        # Mark today
+        today = pd.Timestamp.today()
+        if today >= spread["date"].min() and today <= spread["date"].max():
+            fig6.add_vline(x=today, line_dash="solid", line_color="#E74C3C", line_width=1.5)
         layout6 = _base_layout(300, "Arabica vs Robusta — Spread Z-Score")
         layout6["yaxis"]["title"] = dict(text="Z-Score", font=dict(family=_MONO, size=10, color=_TXT))
         fig6.update_layout(**layout6)
