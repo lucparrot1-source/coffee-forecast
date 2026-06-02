@@ -958,9 +958,9 @@ with tab4:
             sig_border= "#DDD0C0"
             sig_desc  = "No strong edge detected. The Arabica/Robusta price ratio is within its normal historical range — no mean-reversion trade indicated."
 
-        # Gauge: map z to 0–100% on a -4 to +4 scale
-        gauge_pct = min(max((cur_z + 4) / 8 * 100, 2), 98)
-        # Gauge marker color matches signal
+        # Gauge: map z to 0–100% on a -3 to +3 scale
+        # Zones: |z|>2 = entry signal, |z|<0.5 = exit, matching the chart
+        gauge_pct = min(max((cur_z + 3) / 6 * 100, 2), 98)
         gauge_dot_color = sig_color
 
         st.html(f"""
@@ -1021,8 +1021,8 @@ with tab4:
             padding-top: 4px;
             border-top: 1px solid {sig_border};
           }}
-          .gauge-wrap {{ flex: 1; min-width: 180px; padding-top: 8px; }}
-          .gauge-labels {{
+          .gauge-wrap {{ flex: 1; min-width: 220px; padding-top: 8px; }}
+          .gauge-header {{
             display: flex;
             justify-content: space-between;
             font-family: 'Inter', sans-serif;
@@ -1030,18 +1030,25 @@ with tab4:
             font-weight: 600;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: #8C6E52;
             margin-bottom: 6px;
           }}
           .gauge-track {{
             position: relative;
             height: 8px;
             border-radius: 4px;
+            /* 5 zones on -3..+3 scale:
+               -3→-2 = 0-16.7%  deep green
+               -2→-0.5 = 16.7-41.7% light green
+               -0.5→+0.5 = 41.7-58.3% neutral
+               +0.5→+2 = 58.3-83.3% light red
+               +2→+3 = 83.3-100% deep red */
             background: linear-gradient(to right,
-              #2E7D32 0%, #2E7D32 25%,
-              #DDD0C0 25%, #DDD0C0 75%,
-              #C62828 75%, #C62828 100%);
-            margin-bottom: 6px;
+              #2E7D32 0%,   #2E7D32 16.7%,
+              #A5D6A7 16.7%, #A5D6A7 41.7%,
+              #E8DDD0 41.7%, #E8DDD0 58.3%,
+              #FFCDD2 58.3%, #FFCDD2 83.3%,
+              #C62828 83.3%, #C62828 100%);
+            margin-bottom: 10px;
           }}
           .gauge-marker {{
             position: absolute;
@@ -1055,12 +1062,19 @@ with tab4:
             box-shadow: 0 1px 4px rgba(0,0,0,0.25);
             left: {gauge_pct:.1f}%;
           }}
-          .gauge-ticks {{
-            display: flex;
-            justify-content: space-between;
+          /* SD tick marks — absolutely positioned under the track */
+          .gauge-ticks-wrap {{
+            position: relative;
+            height: 18px;
+          }}
+          .gauge-tick {{
+            position: absolute;
+            transform: translateX(-50%);
             font-family: 'IBM Plex Mono', monospace;
-            font-size: 0.60rem;
-            color: #B0A090;
+            font-size: 0.58rem;
+            color: #8C6E52;
+            text-align: center;
+            white-space: nowrap;
           }}
         </style>
 
@@ -1078,15 +1092,20 @@ with tab4:
               <div class="signal-meta">z = {cur_z:+.2f} &nbsp;·&nbsp; half-life ≈ {hl_str}</div>
             </div>
             <div class="gauge-wrap">
-              <div class="gauge-labels">
-                <span>Arabica cheap</span>
-                <span>Arabica expensive</span>
+              <div class="gauge-header">
+                <span style="color:#2E7D32">← Arabica cheap</span>
+                <span style="color:#C62828">Arabica expensive →</span>
               </div>
               <div class="gauge-track">
                 <div class="gauge-marker"></div>
               </div>
-              <div class="gauge-ticks">
-                <span>−4</span><span>−2</span><span>0</span><span>+2</span><span>+4</span>
+              <!-- Tick labels at −2σ, −1σ, 0, +1σ, +2σ on −3..+3 scale -->
+              <div class="gauge-ticks-wrap">
+                <span class="gauge-tick" style="left:16.7%">−2σ</span>
+                <span class="gauge-tick" style="left:33.3%">−1σ</span>
+                <span class="gauge-tick" style="left:50.0%">0</span>
+                <span class="gauge-tick" style="left:66.7%">+1σ</span>
+                <span class="gauge-tick" style="left:83.3%">+2σ</span>
               </div>
             </div>
           </div>
@@ -1146,9 +1165,9 @@ with tab4:
               standardised as a z-score. Zero = historical average. A high line means
               Arabica is expensive relative to Robusta; a low line means it is cheap.
               <ul>
-                <li><span class="tag-red">z &gt; +2</span> → Arabica unusually expensive → favour Robusta</li>
-                <li><span class="tag-green">z &lt; −2</span> → Arabica unusually cheap → favour Arabica</li>
-                <li><span class="tag-amber">|z| &lt; 0.5</span> → ratio back to normal → no signal</li>
+                <li><span class="tag-red">z &gt; +2σ</span> → Arabica unusually expensive — it will likely revert down → <strong>signal: Buy Robusta</strong></li>
+                <li><span class="tag-green">z &lt; −2σ</span> → Arabica unusually cheap — it will likely recover → <strong>signal: Buy Arabica</strong></li>
+                <li><span class="tag-amber">|z| &lt; 0.5σ</span> → ratio back to normal → no signal, hold</li>
               </ul>
             </div>
           </div>
