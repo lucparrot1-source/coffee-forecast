@@ -577,11 +577,14 @@ with tab2:
             return lay
 
         # Actuals vs h=1 forecasts
-        st.caption(
-            "Did the model track the actual price? The amber line is what the model predicted "
-            "one month in advance; the tan line is what actually happened. The shaded band is "
-            "the 80% confidence interval — the model expected the price to land inside it 80% of the time."
-        )
+        st.html("""
+        <p style="font-size:0.95rem; color:#1A1A1A; margin:0 0 16px 0; line-height:1.7;">
+          Did the model track the actual price? The <strong>amber line</strong> is what the model
+          predicted one month in advance; the <strong>tan line</strong> is what actually happened.
+          The shaded band is the <strong>80% confidence interval</strong> — the model expected
+          the price to land inside it 80% of the time.
+        </p>
+        """)
         bt1 = bt[bt["horizon"] == 1].sort_values("target_date")
         fig2 = go.Figure()
         if bt1["p10"].notna().any():
@@ -609,11 +612,14 @@ with tab2:
         st.plotly_chart(fig2, use_container_width=True)
 
         # Error over time by horizon
-        st.caption(
-            "How wrong was the model, in dollar terms? Each line shows the gap between forecast "
-            "and actual price — the shorter the horizon (h=1), the smaller the error tends to be. "
-            "Spikes coincide with sudden market moves that a statistical model cannot anticipate."
-        )
+        st.html("""
+        <p style="font-size:0.95rem; color:#1A1A1A; margin:32px 0 16px 0; line-height:1.7;">
+          How wrong was the model, in dollar terms? The line shows the gap between the
+          one-month-ahead forecast and the actual price each month.
+          <strong>Spikes coincide with sudden market moves</strong> — droughts, crop disease,
+          macro shocks — that a statistical model cannot anticipate in advance.
+        </p>
+        """)
         fig3 = go.Figure()
         cutoff = pd.Timestamp("2024-01-01")
         sub1 = bt[(bt["horizon"] == 1) & (bt["target_date"] >= cutoff)].sort_values("target_date")
