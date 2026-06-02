@@ -371,6 +371,8 @@ with st.sidebar:
     st.html("<hr>")
     st.markdown("**About**")
     st.caption("A personal project applying statistical methods to a real market I follow closely.")
+    st.html("<br>")
+    st.markdown("[View source on GitHub](https://github.com/lucparrot1-source/coffee-forecast)", unsafe_allow_html=False)
 
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -434,7 +436,7 @@ with tab1:
 
         for col, (_, row) in zip(cols[1:], kc.iterrows()):
             target = pd.to_datetime(row["target_date"])
-            month_label = target.strftime("%B").upper()
+            month_label = f"{target.strftime('%B').upper()} (forecast)"
             p50 = row["p50"] if row["p50"] is not None else row["point_forecast"]
             col.metric(
                 month_label,
