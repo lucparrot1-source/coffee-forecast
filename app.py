@@ -612,20 +612,18 @@ with tab2:
             "Spikes coincide with sudden market moves that a statistical model cannot anticipate."
         )
         fig3 = go.Figure()
-        colours = {1: _ACCENT, 2: "#5B8DB8", 3: "#6B9E6B"}
-        labels  = {1: "1-month ahead", 2: "2-month ahead", 3: "3-month ahead"}
         cutoff = pd.Timestamp("2024-01-01")
-        for h in [1, 2, 3]:
-            sub = bt[(bt["horizon"] == h) & (bt["target_date"] >= cutoff)].sort_values("target_date")
-            if sub.empty:
-                continue
-            err = (sub["actual"] - sub["point_forecast"]).abs()
+        sub1 = bt[(bt["horizon"] == 1) & (bt["target_date"] >= cutoff)].sort_values("target_date")
+        if not sub1.empty:
+            err1 = (sub1["actual"] - sub1["point_forecast"]).abs()
             fig3.add_trace(go.Scatter(
-                x=sub["target_date"], y=err,
-                mode="lines", name=labels[h],
-                line=dict(color=colours[h], width=2),
+                x=sub1["target_date"], y=err1,
+                mode="lines", name="1-month ahead",
+                line=dict(color=_ACCENT, width=2),
+                showlegend=False,
             ))
-        lay3 = _chart_layout(260, "Forecast Error by Horizon — 2024 to Present", "Error (USD / lb)")
+        lay3 = _chart_layout(260, "1-Month Forecast Error — 2024 to Present", "Error (USD / lb)")
+        lay3["margin"]["b"] = 16  # no legend, so reclaim that space
         fig3.update_layout(**lay3)
         st.plotly_chart(fig3, use_container_width=True)
 
