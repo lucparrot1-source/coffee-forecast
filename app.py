@@ -26,14 +26,17 @@ html, body, [class*="css"] { font-family: 'Inter', system-ui, sans-serif; }
 header[data-testid="stHeader"] { background: #FFFFFF !important; border-bottom: 1px solid #DDD0C0; }
 
 /* Sidebar */
-[data-testid="stSidebar"] { background: #F7F3EE !important; border-right: 1px solid #DDD0C0 !important; }
+[data-testid="stSidebar"] { background: #FFFFFF !important; border-right: 1px solid #E0E0E0 !important; }
 [data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span { color: #1A1A1A !important; font-size: 0.82rem !important; }
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] small,
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color: #1A1A1A !important; font-size: 0.82rem !important; }
 [data-testid="stSidebar"] strong { color: #B05C1A !important; }
 [data-testid="stSidebarContent"] h3 {
     font-family: 'Lora', Georgia, serif !important;
-    color: #1A1A1A !important; font-size: 1.1rem !important; font-weight: 600 !important;
-    border-bottom: 1px solid #DDD0C0; padding-bottom: 10px; margin-bottom: 10px !important;
+    color: #1A1A1A !important; font-size: 1.0rem !important; font-weight: 700 !important;
+    border-bottom: 2px solid #E0E0E0; padding-bottom: 8px; margin-bottom: 10px !important;
 }
 
 /* Tabs — Chrome-style */
