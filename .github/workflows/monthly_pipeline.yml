@@ -70,6 +70,7 @@ jobs:
         uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: "1.6.40"   # pin — update when upgrading Quarto
+          tinytex: true        # installs TinyTeX so PDF output works
 
       # ── Data ingestion ───────────────────────────────────────────────────
       - name: Ingest prices (FRED + Alpha Vantage)
