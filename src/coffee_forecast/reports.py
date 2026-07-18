@@ -608,6 +608,10 @@ def render_monthly_report(
         **os.environ,
         "REPORT_DB_PATH": str(Path(db_path).resolve()),
         "REPORT_MONTH": month,
+        # Pin Quarto to the same Python interpreter that installed our packages.
+        # Without this, Quarto may resolve 'python3' to a different binary (e.g.
+        # after r-lib/actions/setup-r modifies PATH) and fail to find pyyaml/ipykernel.
+        "QUARTO_PYTHON": sys.executable,
     }
     quarto_exe = _find_quarto()
     result = subprocess.run(
