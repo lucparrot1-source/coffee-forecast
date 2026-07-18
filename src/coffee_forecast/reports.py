@@ -1,4 +1,5 @@
 import argparse
+import base64
 import json
 import logging
 import os
@@ -456,27 +457,42 @@ def _build_success_email_body(
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _post_success_notification(api_key: str, alert_email: str, month: str, body: str) -> None:
+def _post_success_notification(
+    api_key: str,
+    alert_email: str,
+    month: str,
+    body: str,
+    pdf_bytes: bytes | None,
+) -> None:
+    payload: dict = {
+        "from": "onboarding@resend.dev",
+        "to": [alert_email],
+        "subject": f"[coffee-forecast] Monthly report ready: {month}",
+        "html": body,
+    }
+    if pdf_bytes is not None:
+        payload["attachments"] = [
+            {
+                "filename": f"coffee-forecast-{month}.pdf",
+                "content": base64.b64encode(pdf_bytes).decode(),
+            }
+        ]
     resp = requests.post(
         "https://api.resend.com/emails",
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
-        json={
-            "from": "onboarding@resend.dev",
-            "to": [alert_email],
-            "subject": f"[coffee-forecast] Monthly report ready: {month}",
-            "html": body,
-        },
-        timeout=10,
+        json=payload,
+        timeout=30,
     )
     resp.raise_for_status()
 
 
-def send_success_email(month: str, db_path: "str | Path") -> None:
+def send_success_email(month: str, db_path: "str | Path", output_dir: "str | Path" = "reports") -> None:
     """Send a success notification email via Resend after a monthly pipeline run.
 
+    Attaches the rendered PDF if it exists at output_dir/{month}.pdf.
     No-op if RESEND_API_KEY is not set.
     """
     api_key = os.getenv("RESEND_API_KEY", "")
@@ -494,8 +510,16 @@ def send_success_email(month: str, db_path: "str | Path") -> None:
     finally:
         conn.close()
 
+    pdf_path = Path(output_dir) / f"{month}.pdf"
+    pdf_bytes: bytes | None = None
+    if pdf_path.exists():
+        pdf_bytes = pdf_path.read_bytes()
+        log.info("Attaching PDF (%d KB): %s", len(pdf_bytes) // 1024, pdf_path)
+    else:
+        log.warning("PDF not found at %s — sending email without attachment", pdf_path)
+
     body = _build_success_email_body(month, forecasts_df, last_prices, spread_state)
-    _post_success_notification(api_key, alert_email, month, body)
+    _post_success_notification(api_key, alert_email, month, body, pdf_bytes)
     log.info("Success email sent for %s", month)
 
 
@@ -662,7 +686,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.success_email:
-        send_success_email(args.month, args.db)
+        send_success_email(args.month, args.db, args.output_dir)
     else:
         render_monthly_report(args.month, args.db, args.output_dir)
 
